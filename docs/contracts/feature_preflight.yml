@@ -1,0 +1,188 @@
+# IMPORTANT: This is NOT a source-code pattern-scanning contract.
+# Existing contracts in templates/contracts/ enforce regex patterns against source files.
+# This file is a BOARD-AUDITOR RULE SET. board-auditor reads it as a compliance
+# checklist for GitHub issue bodies. It defines required fields that must appear in
+# the "## Pre-flight Findings" section of every specflow-compliant ticket body.
+# The enforcement mechanism is board-auditor — not the pattern-scanning test runner.
+
+contract_meta:
+  id: feature_preflight
+  version: 1
+  created_from_spec: "docs/preflightprd.md"
+  covers_reqs:
+    - ARCH-001
+    - ARCH-002
+    - ARCH-003
+    - ARCH-004
+    - ARCH-005
+    - ARCH-006
+    - ARCH-007
+    - ARCH-008
+    - SIM-006
+    - SIM-007
+    - SIM-008
+  owner: "specflow-core"
+
+llm_policy:
+  enforce: true
+  llm_may_modify_non_negotiables: false
+  override_phrase: "override_contract: feature_preflight"
+
+# Board-auditor rule set — NOT a source-code pattern scanner.
+# board-auditor reads these rules to determine what to check in GitHub issue bodies.
+# Each rule corresponds to a required field or validation constraint in the
+# "## Pre-flight Findings" section of a specflow-compliant ticket.
+board_auditor_rules:
+  required_section:
+    heading: "## Pre-flight Findings"
+    description: >
+      Every specflow-compliant ticket MUST contain a "## Pre-flight Findings"
+      section. A ticket without this section has no pre-flight and is treated
+      as blocked by waves-controller. board-auditor flags absent sections as
+      non-compliant. Covers ARCH-004.
+
+  required_fields:
+    - field: simulation_status
+      description: >
+        MUST be present on the line: "**simulation_status:** <value>"
+        Valid enum values: passed, passed_with_warnings, blocked, stale, override:<any text>
+        Any value outside this enum is treated as blocked by waves-controller (ARCH-006, SIM-008).
+        board-auditor MUST validate the enum and flag non-conforming values as CRITICAL.
+      enum_values:
+        - passed
+        - passed_with_warnings
+        - blocked
+        - stale
+        - override  # prefix — any text may follow the colon (e.g. override:approved-by-colm)
+      line_format: "**simulation_status:** <value>"
+      non_enum_treatment: blocked
+      display_rule: >
+        override:* values MUST be displayed distinctly from passing tickets in board-auditor output.
+        board-auditor SHOULD flag override:* values older than the last contract update as potentially stale.
+
+    - field: simulated_at
+      description: >
+        MUST be present on the line: "**simulated_at:** <timestamp>"
+        Value MUST be RFC 3339 UTC format only. Example: 2026-02-19T14:32:00Z
+        No other ISO 8601 variant is accepted. GitHub's updatedAt field is also RFC 3339 UTC;
+        the staleness comparison only works when formats match (ARCH-007).
+        If this line is absent, the ticket has no pre-flight and is treated as blocked.
+      format: "RFC 3339 UTC"
+      example: "2026-02-19T14:32:00Z"
+      line_format: "**simulated_at:** <RFC3339-UTC-timestamp>"
+      if_absent: blocked
+
+    - field: scope
+      description: >
+        MUST be present on the line: "**scope:** <value>"
+        Valid values: ticket, wave
+        Indicates whether the pre-flight was run at single-ticket scope (Lenses 1-5)
+        or wave scope (Lenses 1-6, including cross-ticket analysis). Covers ARCH-002.
+      enum_values:
+        - ticket
+        - wave
+      line_format: "**scope:** <ticket|wave>"
+
+  staleness_rules:
+    ticket_staleness:
+      description: >
+        If ticket.updated_at > simulated_at, board-auditor MUST set simulation_status to stale.
+        stale is treated as blocked by waves-controller. No wave fires on a stale pre-flight.
+        Covers ARCH-007.
+      data_sources:
+        simulated_at:
+          source: "## Pre-flight Findings section of ticket body"
+          line_format: "**simulated_at:** 2026-02-19T14:32:00Z"
+          if_absent: "treat ticket as blocked (no pre-flight)"
+        ticket_updated_at:
+          source: "GitHub API"
+          command: "gh issue view [N] --json updatedAt -q '.updatedAt'"
+          authoritative: true
+          note: "Do NOT use file system timestamps or git log for this value."
+      rule: "if ticket_updated_at > simulated_at → simulation_status = stale"
+
+    contract_staleness:
+      description: >
+        If any docs/contracts/*.yml file referenced by contract IDs found in the ticket body
+        has mtime > simulated_at, board-auditor MUST flag the ticket pre-flight as stale.
+        A contract update can invalidate a previously passing simulation. Covers ARCH-008.
+      data_sources:
+        contract_mtime:
+          source: "filesystem"
+          command_linux: "stat -c %Y docs/contracts/[file].yml"
+          command_macos: "stat -f %m docs/contracts/[file].yml"
+          note: "Convert to ISO timestamp for comparison against simulated_at."
+      rule: "if contract_file.mtime > simulated_at → simulation_status = stale"
+
+  override_rules:
+    trigger: "override_preflight: [ticket-id] reason: [reason text]"
+    effect: "simulation_status is set to override:[reason]"
+    audit_log: "docs/preflight/overrides.md"
+    audit_fields:
+      - ticket-id
+      - reason
+      - timestamp
+      - user
+    display: "board-auditor MUST display overridden tickets distinctly from passing tickets"
+    staleness_check: "board-auditor SHOULD flag overrides older than the last contract update as potentially stale"
+
+  findings_severity:
+    CRITICAL:
+      definition: "Will break the build or produce wrong system state"
+      pipeline_effect: "Blocks wave execution. Human must resolve."
+      lens_attribution: required  # SIM-006
+    P1:
+      definition: "Wrong, incomplete, or contradicts existing contract"
+      pipeline_effect: "Surfaces as warning. Wave can proceed with explicit override."
+      lens_attribution: required
+    P2:
+      definition: "Product correctness issues, missing edge handling"
+      pipeline_effect: "Logged silently to docs/preflight/ — does not block"
+      output_path: "docs/preflight/[ticket-id]-[timestamp].md"
+      lens_attribution: required
+
+# Machine-readable field definitions for board-auditor to parse ticket bodies.
+# These define the exact line format board-auditor must search for in "## Pre-flight Findings".
+schema_validation:
+  section_heading_regex: "^## Pre-flight Findings$"
+  field_line_formats:
+    simulation_status: "^\\*\\*simulation_status:\\*\\* (.+)$"
+    simulated_at: "^\\*\\*simulated_at:\\*\\* (.+)$"
+    scope: "^\\*\\*scope:\\*\\* (.+)$"
+  simulation_status_enum:
+    - passed
+    - passed_with_warnings
+    - blocked
+    - stale
+    - "override:*"  # wildcard — any text after colon is valid
+  simulated_at_format: "RFC3339-UTC"
+  simulated_at_pattern: "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+  scope_enum:
+    - ticket
+    - wave
+
+compliance_checklist:
+  before_firing_sprint_executor:
+    - question: "Does every ticket in the wave have a '## Pre-flight Findings' section?"
+      if_no: "Block the wave. Tickets without pre-flight are treated as blocked."
+    - question: "Is simulation_status a valid enum value for every ticket?"
+      if_no: "Block the wave. Non-enum values are treated as blocked."
+    - question: "Is any ticket's simulation_status 'blocked' or 'stale'?"
+      if_yes: "Block the wave. Human must resolve or provide explicit override."
+    - question: "Is ticket.updated_at newer than simulated_at for any ticket?"
+      if_yes: "Set simulation_status to 'stale' and block the wave."
+    - question: "Is any referenced docs/contracts/*.yml mtime newer than simulated_at?"
+      if_yes: "Set simulation_status to 'stale' and block the wave."
+    - question: "Are there any override:* statuses in the wave?"
+      if_yes: "Display overrides distinctly in audit output. Check if override is older than last contract update."
+
+  before_closing_ticket:
+    - question: "Does the ticket have a passing or acknowledged pre-flight section?"
+      if_no: "Ticket is NOT specflow-compliant. Run pre-flight before closing."
+    - question: "Was the ticket edited after pre-flight ran (ticket.updated_at > simulated_at)?"
+      if_yes: "Pre-flight is stale. Re-run before marking compliant."
+
+test_hooks:
+  tests:
+    - file: "tests/schema/feature_preflight.test.js"
+      description: "Schema validation: YAML parseable, required fields present, enum values listed"

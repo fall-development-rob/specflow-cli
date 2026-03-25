@@ -461,3 +461,14 @@ if (ERRORS.length > 0) {
   console.error('\n\x1b[32m✓ Graph is clean.\x1b[0m\n');
   process.exit(0);
 }
+
+// Exports for testing
+module.exports = {
+  checkContractsDir,
+  checkTestPaths,
+  checkJourneyIds,
+  checkContractIndex,
+  checkInvariantReferences,
+  checkAdrFrontmatter,
+  checkWaivers,
+};

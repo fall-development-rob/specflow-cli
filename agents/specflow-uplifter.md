@@ -126,7 +126,62 @@ issue implementation-ready.
 issue spec and prior comments.*"
 ```
 
-### Step 5: Batch Processing
+### Step 5: Post-Uplift Pre-Flight Simulation (MANDATORY)
+
+After posting the uplift comment (Step 4), you MUST invoke pre-flight-simulator on the modified ticket before marking it compliant.
+
+Pass the full updated ticket body (original body + uplift additions) in ticket-scope input format:
+
+```json
+{
+  "scope": "ticket",
+  "ticket": {
+    "id": "[issue number]",
+    "body": "[full markdown ticket body including uplift additions]",
+    "updated_at": "[current RFC 3339 UTC timestamp]"
+  },
+  "contracts_dir": "docs/contracts/",
+  "schema_files": ["[relevant schema files]"]
+}
+```
+
+**If CRITICAL or P1 findings remain after uplift:**
+- Surface findings to the user
+- Do NOT mark the ticket compliant
+- Do NOT append a `## Pre-flight Findings` section with a passing status
+- Report what structural gaps remain and what further changes are needed
+
+**If clean (no findings) or P2 only:**
+1. Write any P2 findings to `docs/preflight/[ticket-id]-[timestamp].md`
+2. Append the `## Pre-flight Findings` section to the ticket body via `gh issue edit [N] --body "[full updated body]"`
+3. Set `simulation_status` to the appropriate enum value
+4. The ticket is now marked compliant
+
+**Key distinction:**
+- specflow-uplifter does NOT mark tickets compliant directly
+- pre-flight-simulator's findings determine compliance
+- specflow-uplifter writes the pre-flight section and compliance status ONLY if pre-flight returns no CRITICALs
+
+#### Pre-flight Findings section format
+
+```markdown
+## Pre-flight Findings
+
+**simulation_status:** [passed | passed_with_warnings | blocked | stale | override:reason]
+**simulated_at:** [RFC 3339 UTC timestamp — e.g. 2026-02-19T14:32:00Z]
+**scope:** ticket
+
+### CRITICAL
+[content or "None"]
+
+### P1
+[content or "None"]
+
+### P2
+[logged to docs/preflight/[ticket-id]-[timestamp].md]
+```
+
+### Step 6: Batch Processing
 
 When uplifting multiple issues in the same epic, maintain consistency:
 - Use the same RLS join pattern across all issues in the epic
@@ -181,3 +236,29 @@ USING (
 - [ ] Invariant codes use the correct domain prefix
 - [ ] Comment clearly labeled as "Specflow Uplift"
 - [ ] Batch consistency maintained across related issues
+- [ ] Pre-flight simulation run after every uplift (Step 5)
+- [ ] Ticket NOT marked compliant if CRITICAL or P1 findings remain post-uplift
+
+---
+
+## Pre-Flight Integration
+
+specflow-uplifter does NOT determine compliance on its own. After every uplift, it MUST invoke pre-flight-simulator and let the findings determine whether the ticket can be marked compliant.
+
+### Responsibility split
+
+| Agent | Responsibility |
+|-------|---------------|
+| specflow-uplifter | Apply structural fixes (surgical additions) |
+| pre-flight-simulator | Analyse the fixed ticket, return findings |
+| specflow-uplifter | Write `## Pre-flight Findings` section and compliance status to GitHub — ONLY if pre-flight returns no CRITICALs |
+
+pre-flight-simulator is read-only and never writes to GitHub. specflow-uplifter performs the `gh issue edit` call after simulation.
+
+### Uplift does not grandfather previous failures
+
+If uplift partially fixes a ticket but CRITICAL gaps remain, the ticket stays `blocked`. A ticket is compliant only when pre-flight returns no CRITICALs. specflow-uplifter surfaces the remaining gaps and leaves the ticket in a non-compliant state until the user resolves them.
+
+### Batch uplift behaviour
+
+When uplifting multiple issues: run Steps 1-5 (including pre-flight) for each issue independently. Do not batch-mark compliant — each ticket's compliance is determined by its own pre-flight result.

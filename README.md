@@ -73,6 +73,37 @@ Claude builds a dependency graph from your issues and executes them in parallel 
 
 ---
 
+## What "Specflow-Compliant" Actually Means
+
+An issue or spec is not Specflow-compliant just because it has `REQS` and `JOURNEYS`.
+
+Minimum required sections:
+- `REQS`
+- `INVARIANTS`
+- `Persona Simulation`
+- `JOURNEYS`
+- `TESTS`
+- `DEFINITION OF DONE`
+
+Minimum required traceability:
+- every `MUST` requirement maps to at least one test
+- each ticket/spec declares whether it has a direct UI surface
+- direct UI surfaces must have Playwright coverage or an explicit `N/A` justification
+- docs/discoverability work must either expose a real discovery surface or declare itself repo-only
+- persona simulation must feed structured pre-flight findings (`simulation_status`, `CRITICAL`, `P1`, `P2`)
+
+Test categories can include:
+- feature
+- contract
+- security
+- Playwright / e2e
+- unit / integration when appropriate
+
+If `INVARIANTS` or `TESTS` are missing, the issue/spec is not compliant.
+If a workflow, UI, permissions, or automation ticket is missing `Persona Simulation`, it is not compliant.
+
+---
+
 ## FAQ
 
 **Isn't this just more testing?** No. Tests verify behaviour. Contracts verify architecture. "No localStorage for tokens" survives any refactor. "login() returns a token" doesn't.

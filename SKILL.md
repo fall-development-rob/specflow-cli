@@ -12,14 +12,15 @@ Specs that enforce themselves. Turn requirements into contracts that break the b
 ## Core Loop
 
 ```
-Spec --> Contract --> Test --> Code --> Verify
+Spec --> [Pre-Flight] --> Contract --> Test --> Code --> Verify
 ```
 
 1. Write requirements with IDs (AUTH-001 MUST, J-CHECKOUT-001)
-2. Generate contract YAML with forbidden/required patterns
-3. Generate tests that scan source code for violations
-4. Implement code that satisfies contracts
-5. Violations = build fails = PR blocked
+2. Run pre-flight simulation — catches broken specs before any code is written
+3. Generate contract YAML with forbidden/required patterns
+4. Generate tests that scan source code for violations
+5. Implement code that satisfies contracts
+6. Violations = build fails = PR blocked
 
 ## When Activated
 
@@ -30,6 +31,66 @@ When this skill is active, Claude Code MUST:
 3. **When creating new features**: Generate the spec (with REQ IDs), contract YAML, and test files BEFORE implementing code.
 4. **When a contract violation is reported**: Read the contract rule, understand why it exists, fix the code to comply. Never work around the test.
 5. **Never modify `non_negotiable` rules** unless the user explicitly says `override_contract: <contract_id>`.
+6. **Before accepting a ticket as specflow-compliant**: Pre-flight must have run and returned `passed`, `passed_with_warnings`, or a human-acknowledged `override:*` status. A ticket with `blocked`, `stale`, or missing pre-flight section is NOT compliant.
+
+---
+
+## Pre-Flight Gate
+
+A read-only simulation that catches broken specs before any code is written. Pre-flight runs at two points in the pipeline:
+
+### Two Scopes
+
+| Scope | Trigger | Lenses |
+|-------|---------|--------|
+| **Ticket** | When any ticket is created or edited as a specflow ticket | Lenses 1-5 |
+| **Wave** | Between dependency-mapper and sprint-executor, for all wave tickets simultaneously | Lenses 1-6 (includes Lens 6: Concurrent User Scenarios) |
+
+### Trigger Phrases (Ticket Scope)
+
+All of the following invoke format-then-simulate, in that order, every time:
+- "write this as a specflow ticket"
+- "update this ticket as a specflow ticket"
+- "edit this ticket as a specflow ticket"
+- "make this ticket specflow-compliant"
+- Any instruction resulting in specflow-writer creating or modifying a ticket body
+
+A ticket is NOT specflow-compliant until both format AND simulate have completed cleanly.
+
+### simulation_status Enum
+
+```
+passed              — no CRITICAL findings
+passed_with_warnings — P1 findings present but acknowledged
+blocked             — CRITICAL findings unresolved; ticket cannot enter a wave
+stale               — ticket or referenced contract updated after last simulation
+override:[reason]   — human override applied; wave can proceed
+```
+
+Any value outside this enum is treated as `blocked` by waves-controller. The field is parsed directly — no regex, no interpretation.
+
+### Wave Gate Logic
+
+After dependency-mapper completes and before sprint-executor fires:
+- Any ticket with `blocked` or `stale` → wave pauses, finding summary output to user, STOP
+- Any non-enum value → treated as `blocked`, STOP
+- All tickets with `passed`, `passed_with_warnings`, or `override:*` → sprint-executor proceeds
+
+### Override
+
+```
+override_preflight: [ticket-id] reason: [reason text]
+```
+
+Sets `simulation_status: override:[reason]` on the ticket. Logged to `docs/preflight/overrides.md` with ticket-id, reason, RFC 3339 UTC timestamp, and user. board-auditor displays overrides distinctly (⚠️OVERRIDE prefix) and flags overrides older than the last contract update.
+
+### What Pre-Flight Does NOT Do
+
+- Does not modify source files, contract YAMLs, or migrations
+- Does not run tests or Playwright
+- Does not fix tickets (that is heal-loop's job on built code)
+- Does not call external APIs
+- Does not mark a ticket compliant — it returns findings; specflow-writer applies the status
 
 ---
 
@@ -188,6 +249,30 @@ Forbidden: /tabIndex\s*=\s*\{?\s*[1-9]/
 ---
 
 ## Agent Behaviors (Condensed)
+
+### Pre-Flight Simulator
+
+**When**: Before any ticket is accepted as specflow-compliant; before each wave fires (between dependency-mapper and sprint-executor).
+
+**Recommended model**: `sonnet`
+
+**Process**:
+1. Receive JSON input with scope (`ticket` or `wave`) plus ticket bodies and `contracts_dir`
+2. Load all files in `docs/contracts/` before running any lens (proof-of-work: list every file loaded)
+3. Run lenses in sequence — Lenses 1-5 for ticket scope, Lenses 1-6 for wave scope:
+   - **Lens 1: Dependency Order** — are all upstream dependencies present in the wave or schema?
+   - **Lens 2: Shared State** — concurrent writes, global state that should be per-user scoped?
+   - **Lens 3: Schema Reality Check** — every field, column, endpoint, and contract ID referenced actually exists?
+   - **Lens 4: Timing and Interval Assumptions** — polling intervals, timeouts, SLA thresholds match contracts?
+   - **Lens 5: Partial Failure States** — missing rollback, cleanup, or idempotency on step N+1 failure?
+   - **Lens 6: Concurrent User Scenarios** (wave scope only) — race conditions, missing locks, shared state not isolated per-session?
+4. Write findings to `## Pre-flight Findings` section in each ticket body (via specflow-writer for writes)
+5. Return structured report with Lens attribution on every finding
+6. P2 findings written to `docs/preflight/[ticket-id]-[timestamp].md` without blocking
+
+**This agent is read-only.** It never modifies source files, contract YAMLs, or migrations.
+
+---
 
 ### Spec Writer
 
@@ -424,12 +509,14 @@ This command works at any point during wave execution. See `agents/waves-control
 ## Quick Reference
 
 ```
-Core Loop:        Spec --> Contract --> Test --> Code --> Verify
+Core Loop:        Spec --> [Pre-Flight] --> Contract --> Test --> Code --> Verify
 REQ ID Format:    AUTH-001 (MUST), AUTH-010 (SHOULD), J-AUTH-LOGIN
 Contract Files:   docs/contracts/feature_*.yml, journey_*.yml
 Test Files:       src/__tests__/contracts/*.test.ts, tests/e2e/*.spec.ts
 Commands:         npm test -- contracts, npx playwright test
 Override:         override_contract: <contract_id>
+Pre-Flight:       simulation_status: passed | passed_with_warnings | blocked | stale | override:[reason]
+PF Override:      override_preflight: <ticket-id> reason: <reason text>
 ```
 
 ---

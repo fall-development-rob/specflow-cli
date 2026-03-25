@@ -48,13 +48,194 @@ Each spec file uses the same structure:
 ### [REQ-ID] (SHOULD)
 [Preferred behavior, not enforced]
 
+## INVARIANTS
+
+- [Invariant that must remain true across refactors]
+- [Permission/security/identity invariant]
+
+## Persona Simulation
+
+### Persona: [name]
+Job to be done:
+- [what they are actually trying to achieve]
+
+Simulation:
+1. [step]
+2. [step]
+3. [step]
+
+Breakpoints:
+- [where it becomes harder, ambiguous, or unsafe]
+- [missing prerequisite or trust break]
+
+Outcome:
+- [does this feature help this persona or not]
+
+## Simulation Verdict
+- [overall conclusion]
+- [what must be true for the feature to work]
+- [highest-risk edge]
+- [what should be implemented first]
+
 ---
 
 ## JOURNEYS
 
 ### [JOURNEY-ID]
 [User journey description]
+
+## TESTS
+
+### Feature
+- [path/to/feature.test.ts]
+
+### Contract
+- [path/to/contract.test.ts]
+
+### Security
+- [path/to/security.test.ts]
+
+### Playwright
+- [path/to/journey.spec.ts]
+- or: `N/A — no direct UI surface`
+
+## Journey Contract
+
+[Journey contract reference]
+
+## Pre-flight Findings
+
+> This section is machine-readable. Formatting must be exact.
+> It is appended by specflow-writer after pre-flight runs — do NOT author it manually.
+> waves-controller parses `simulation_status` directly: no regex, no interpretation.
+> Any value outside the enum is treated as `blocked`.
+> `confidence_score` is NOT in this section (deferred from v1 — see SIM-012).
+
+**simulation_status:** [passed | passed_with_warnings | blocked | stale | override:reason]
+**simulated_at:** [ISO timestamp — RFC 3339 UTC, e.g. 2026-02-19T14:32:00Z]
+**scope:** [ticket | wave]
+
+### CRITICAL
+<!-- Empty if none -->
+
+### P1
+<!-- Empty if none -->
+
+### P2
+<!-- Logged to docs/preflight/[ticket-id]-[timestamp].md -->
 ```
+
+### Compliance Rules
+
+Specflow compliance is not satisfied by headings alone.
+
+A spec is only compliant when it includes:
+- `REQS`
+- `INVARIANTS`
+- `Persona Simulation`
+- `JOURNEYS`
+- `TESTS`
+- `DEFINITION OF DONE` or equivalent release gate
+
+Additional rules:
+- Every `MUST` requirement must map to at least one test.
+- Persona simulation is required for UI, workflow, permissions/auth, automation/agent, and multi-actor features. Tiny mechanical tickets may use `N/A` only with explicit justification.
+- Persona simulation must cover at least:
+  - the primary user
+  - one edge, secondary, hostile, unauthorized, or operator persona as relevant
+- Persona simulation must end in structured breakpoints and pre-flight findings. Narrative alone is insufficient.
+- Every ticket/spec must state whether there is a direct UI surface.
+- If there is a direct UI surface, include a Playwright journey or explain why it is intentionally absent.
+- Docs/discoverability work is not exempt. If a user or developer must find it, there must be a discoverability surface or an explicit statement that it is repo-only.
+- Feature tests and contract tests are different. Use both when behavior and published interface both matter.
+
+### Persona Simulation Prompt
+
+Use this prompt before locking the ticket/spec:
+
+```text
+Run a pre-flight simulation on this ticket before implementation.
+
+You are not writing marketing copy. You are trying to find where the feature breaks, adds friction, leaks permissions, or fails the user’s real job to be done.
+
+1. Identify the 2-4 most relevant personas for this feature.
+   Include:
+   - the primary user
+   - a secondary or edge user
+   - a hostile, unauthorized, or mis-scoped user if permissions matter
+   - an operator/debugger persona if observability matters
+
+2. For each persona, simulate the end-to-end experience step by step.
+   Focus on:
+   - what they are trying to achieve
+   - what they see or do
+   - where the workflow becomes harder
+   - where the model is ambiguous
+   - where permissions or data boundaries may break
+   - what prerequisite is missing
+   - what would make them stop trusting the feature
+
+3. Separate:
+   - UI friction
+   - workflow friction
+   - data/model problems
+   - security/permission risks
+   - observability/debugging gaps
+
+4. Conclude with:
+   - Does this feature actually accomplish the job?
+   - What must be true for it to work well?
+   - What is the highest-risk edge?
+   - What should be implemented first?
+
+5. Output in this exact structure:
+
+## Persona Simulation
+
+### Persona: [name]
+Job to be done:
+- ...
+
+Simulation:
+1. ...
+2. ...
+3. ...
+
+Breakpoints:
+- ...
+- ...
+
+Outcome:
+- ...
+
+## Simulation Verdict
+- ...
+
+## Pre-flight Findings
+
+**simulation_status:** passed | passed_with_warnings | blocked
+**simulated_at:** [ISO UTC timestamp]
+**scope:** ticket
+
+### CRITICAL
+- ...
+
+### P1
+- ...
+
+### P2
+- ...
+```
+
+### Persona Simulation Anti-Patterns
+
+- Do not write only happy-path simulation.
+- Do not produce persona theater with no concrete breakpoints.
+- Do not confuse evidence of activity with success at the job to be done.
+- Do not use one persona when the feature clearly has multiple actors or roles.
+- Do not stop at UI polish; include permissions, data model, and trust edges.
+- Do not let simulation replace requirements. Use it to sharpen them.
+- Do not mark `simulation_status: passed` if a critical prerequisite is missing.
 
 ---
 
@@ -645,6 +826,12 @@ Add changelog at bottom of spec:
 │   Steps:                                                │
 │   1. Step one                                           │
 │                                                          │
+│   ## Pre-flight Findings          ← required section   │
+│   **simulation_status:** [enum]                         │
+│   **simulated_at:** [RFC3339-UTC]                       │
+│   **scope:** [ticket | wave]                            │
+│   (appended by specflow-writer — machine-readable)      │
+│                                                          │
 │   ## DEFINITION OF DONE                                 │
 │   ### Critical (MUST PASS)                              │
 │   - J-[FEATURE]-[NAME]                                  │
@@ -660,6 +847,10 @@ Add changelog at bottom of spec:
 │ DOD Levels:  Critical = blocks release                  │
 │              Important = should fix                     │
 │              Future = can skip                          │
+│                                                          │
+│ Pre-flight status enum:                                 │
+│   passed | passed_with_warnings | blocked | stale       │
+│   override:<reason>  (any non-enum → treated as blocked)│
 │                                                          │
 │ Contract Hierarchy:                                     │
 │   ARCH → protects structure                             │

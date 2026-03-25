@@ -75,7 +75,7 @@ fi
 
 get_latest_run() {
     # Returns JSON: status, conclusion, url, name, databaseId
-    gh run list --limit 1 --json status,conclusion,url,name,databaseId 2>/dev/null
+    gh run list --limit 1 --branch "$(git branch --show-current)" --json status,conclusion,url,name,databaseId 2>/dev/null
 }
 
 parse_run_field() {

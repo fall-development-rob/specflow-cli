@@ -244,7 +244,10 @@ SPRINT SUMMARY
 
 ---
 
-## The 8 Phases (Agent Teams Mode)
+## The Phases (Agent Teams Mode)
+
+> **Pipeline overview:**
+> Phase 1 (Discovery) → Phase 2 (Spawn Team) → **Phase 2a (Pre-Flight Gate)** → Phase 2b (Contract Completeness Gate) → Phases 3-6 (Teammate Self-Coordination) → Phase 6a-6c (Gates) → Phase 7 (Closure) → Phase 8 (Report)
 
 ### Phase 1: Discovery, Priority & Dependency Mapping
 
@@ -329,6 +332,109 @@ TaskCreate(subject: "Implement #52", description: "Full lifecycle", activeForm: 
 ```
 
 Set dependencies between tasks using `addBlockedBy` where issues depend on each other.
+
+---
+
+### Phase 2a: Pre-Flight Gate (MANDATORY)
+
+**Goal:** Catch broken specs before any code is written. This gate runs between dependency-mapper output (Phase 1) and sprint-executor (Phase 3+). No wave fires if any ticket is `blocked` or `stale`.
+
+**Pipeline position:**
+```
+dependency-mapper → [PRE-FLIGHT: wave scope] → sprint-executor
+```
+
+**Actions:**
+
+1. Construct wave-scope JSON input from all wave tickets:
+   ```json
+   {
+     "scope": "wave",
+     "wave_number": N,
+     "tickets": [
+       {
+         "id": "string",
+         "body": "string (full markdown ticket body)",
+         "updated_at": "ISO timestamp"
+       }
+     ],
+     "contracts_dir": "docs/contracts/",
+     "schema_files": []
+   }
+   ```
+   Fetch each ticket body: `gh issue view [N] --json body,updatedAt -q '{id: .number|tostring, body: .body, updated_at: .updatedAt}'`
+
+2. Pass the full JSON input to the `pre-flight-simulator` agent. The simulator runs Lenses 1-6 across all tickets simultaneously (wave scope includes Lens 6: Concurrent User Scenarios).
+
+3. The `pre-flight-simulator` returns structured findings per ticket. For each ticket, waves-controller (as orchestrator) coordinates the body update via specflow-writer:
+   - Call `specflow-writer` with instruction to write the `## Pre-flight Findings` section to the ticket body using `gh issue edit [N] --body "[full updated body]"`
+   - The `## Pre-flight Findings` section format:
+     ```markdown
+     ## Pre-flight Findings
+
+     **simulation_status:** [passed | passed_with_warnings | blocked | stale | override:reason]
+     **simulated_at:** [RFC 3339 UTC timestamp, e.g. 2026-02-19T14:32:00Z]
+     **scope:** wave
+
+     ### CRITICAL
+     <!-- Empty if none -->
+
+     ### P1
+     <!-- Empty if none -->
+
+     ### P2
+     <!-- Logged to docs/preflight/[ticket-id]-[timestamp].md -->
+     ```
+
+4. After all ticket bodies are updated, parse `simulation_status` from each ticket's `## Pre-flight Findings` section:
+   - Read the line `**simulation_status:** [value]` — extract the value exactly as written
+   - **NO regex interpretation. NO fuzzy matching. Parse the enum value directly.**
+   - Valid enum values: `passed`, `passed_with_warnings`, `blocked`, `stale`, `override:[any text]`
+
+5. Apply gate logic:
+   - Any ticket with `simulation_status: blocked` → **STOP**. Output finding summary to user. Do NOT fire sprint-executor.
+   - Any ticket with `simulation_status: stale` → **STOP**. Output finding summary to user. Do NOT fire sprint-executor.
+   - Any value outside the valid enum → treat as `blocked` → **STOP**.
+   - All tickets with `passed`, `passed_with_warnings`, or `override:*` → proceed to sprint-executor.
+
+**Gate output when blocked:**
+```
+PRE-FLIGHT GATE — Wave N BLOCKED
+══════════════════════════════════════════════════════
+Tickets analysed: N
+Blocked tickets: [list of ticket IDs with simulation_status: blocked or stale]
+
+[Per blocked ticket]
+Ticket #N: [title]
+  simulation_status: blocked
+  CRITICAL findings:
+    [PREF-C001]: [Finding title] — Lens: [LENS NAME]
+    Detail: [description]
+
+Resolution required before this wave can proceed.
+Override a ticket with: override_preflight: [ticket-id] reason: [reason text]
+══════════════════════════════════════════════════════
+```
+
+**Override mechanics:**
+
+User command: `override_preflight: [ticket-id] reason: [reason text]`
+
+1. Set `simulation_status: override:[reason]` in the ticket's `## Pre-flight Findings` section via `gh issue edit`
+2. Log to `docs/preflight/overrides.md` — append entry:
+   ```markdown
+   ## Override: [ticket-id]
+   **Reason:** [reason text]
+   **Timestamp:** [RFC 3339 UTC]
+   **User:** [user identifier if available, otherwise "manual"]
+   ```
+3. Re-evaluate gate logic. If all remaining tickets now pass, proceed.
+
+**SIM-004 is NOT implemented in v1.** Pre-flight runs once per wave. If a ticket is edited after the wave passes pre-flight, manually re-run:
+```
+Invoke pre-flight-simulator with scope: "ticket" for the edited ticket, then re-run wave scope if the ticket's status changes.
+```
+Automatic re-simulation on ticket edit is deferred. The detection mechanism (GitHub `updated_at` advances on comments, not just body edits) is unreliable in v1. Do not implement auto-triggers.
 
 ---
 
@@ -551,6 +657,7 @@ environment variables, and fallback behavior.
 - [ ] All agent prompts loaded
 - [ ] Dependency graph calculated correctly
 - [ ] No circular dependencies
+- [ ] **Pre-flight gate passed** (Phase 2a): all tickets `passed`, `passed_with_warnings`, or `override:*` before sprint-executor fires
 - [ ] Contracts generated before implementation
 - [ ] Tests generated before execution
 - [ ] Quality gates respected (STOP on failure)
@@ -581,7 +688,20 @@ If TeammateTool is not available at startup, use subagent mode. All visualizatio
 
 ### Phase Mapping
 
-The 8 phases execute identically, but agents are spawned via Task tool instead of TeammateTool:
+The phases execute identically, but agents are spawned via Task tool instead of TeammateTool:
+
+**Phase 2a: Pre-Flight Gate (Subagent Mode)**
+```
+[Sequential — must complete before Phase 2b]:
+  Task("Run pre-flight for Wave N", "{pre-flight-simulator prompt}\n\n---\n\nSPECIFIC TASK: Run wave-scope pre-flight simulation. Input: {wave_scope_json}", "general-purpose", model="sonnet")
+
+After Task completes:
+  - Read simulation_status from each ticket's ## Pre-flight Findings section
+  - Parse enum directly — no regex, no interpretation
+  - Any blocked or stale: STOP, output finding summary, do not proceed
+  - Non-enum value: treat as blocked, STOP
+  - All passed/passed_with_warnings/override:* → proceed to Phase 2b
+```
 
 **Phase 2: Contract Generation**
 ```
@@ -646,6 +766,7 @@ Wait for all to complete, then proceed to next phase.
 ```
 
 ### Subagents Spawned (by phase)
+- Phase 2a: pre-flight-simulator (sequential, wave scope) — BLOCKS if any ticket blocked or stale
 - Phase 2: specflow-writer (parallel, one per issue)
 - Phase 3: contract-validator (parallel, one per contract)
 - Phase 4: migration-builder, edge-function-builder, frontend-builder (as needed)

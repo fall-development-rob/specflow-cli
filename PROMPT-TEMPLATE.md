@@ -40,11 +40,15 @@ Use the Specflow methodology. Follow these steps exactly:
 
 1. Read LLM-MASTER-PROMPT.md for your workflow
 2. Convert my requirements into SPEC-FORMAT.md with REQ IDs ([PREFIX]-001, [PREFIX]-002)
-3. Generate contracts using CONTRACT-SCHEMA.md with forbidden/required patterns
-4. Generate tests that reference the REQ IDs
-5. Implement the feature following the contracts
-6. Run tests and report DOD status
-7. Create/update CLAUDE.md for future LLM sessions
+3. Extract explicit invariants and note whether this feature has a direct UI surface
+4. Run a concrete persona simulation pre-flight and add `Persona Simulation`, `Simulation Verdict`, and `Pre-flight Findings`
+5. Generate contracts using CONTRACT-SCHEMA.md with forbidden/required patterns
+6. Generate tests that reference the REQ IDs and invariants
+7. Map each MUST requirement to at least one test category (feature, contract, security, Playwright, or unit/integration)
+8. If there is a direct UI surface, include a Playwright journey. If not, state `N/A — no direct UI surface`
+9. Implement the feature following the contracts
+10. Run tests and report DOD status
+11. Create/update CLAUDE.md for future LLM sessions
 
 **Show me each output file before proceeding to the next step.**
 
@@ -96,11 +100,15 @@ Use Specflow. Follow these steps:
 
 1. Read LLM-MASTER-PROMPT.md
 2. Convert requirements to SPEC-FORMAT.md with SPLIT-001, SPLIT-002, etc.
-3. Generate contracts with forbidden patterns (e.g., /splitEvenly/)
-4. Generate tests referencing SPLIT-001, SPLIT-002
-5. Implement calculator and UI
-6. Run tests, report DOD status
-7. Create CLAUDE.md
+3. Extract explicit invariants and declare whether the feature has a direct UI surface
+4. Run a concrete persona simulation and produce breakpoints plus structured pre-flight findings
+5. Generate contracts with forbidden patterns (e.g., /splitEvenly/)
+6. Generate tests referencing SPLIT-001, SPLIT-002 and the invariants
+7. Map each MUST requirement to at least one test category
+8. Add a Playwright journey if there is a direct UI surface, otherwise say `N/A — no direct UI surface`
+9. Implement calculator and UI
+10. Run tests, report DOD status
+11. Create CLAUDE.md
 
 Show me each file before proceeding.
 
@@ -135,8 +143,14 @@ Critical journeys: Journey 1, Journey 2
 After LLM completes, verify:
 
 - [ ] Spec has REQ IDs (SPLIT-001, SPLIT-002, etc.)
+- [ ] Spec has explicit INVARIANTS
+- [ ] Spec has Persona Simulation with concrete breakpoints
+- [ ] Pre-flight Findings are structured and not just narrative
 - [ ] Contracts have forbidden_patterns and/or required_patterns
+- [ ] Tests are mapped by category (feature, contract, security, Playwright, etc.)
+- [ ] Every MUST requirement maps to at least one test
 - [ ] Tests output `CONTRACT VIOLATION: [REQ-ID]` on failure
 - [ ] CLAUDE.md exists with contract section at top
+- [ ] Direct UI surface has Playwright coverage or explicit N/A note
 - [ ] All critical journey tests pass
 - [ ] DOD status reported as "ready for release"

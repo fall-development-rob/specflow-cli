@@ -1,0 +1,93 @@
+# Self-referential contract: Specflow enforces its own methodology.
+# This contract protects the Specflow codebase's structural integrity.
+# Enforcement: tests/contracts/specflow_self_compliance.test.js
+
+contract_meta:
+  id: feature_specflow_project
+  version: 1
+  created_from_spec: "Specflow self-compliance — dogfooding the methodology"
+  covers_reqs:
+    - PROJ-001
+    - PROJ-002
+    - PROJ-003
+    - PROJ-004
+  owner: "specflow-core"
+
+llm_policy:
+  enforce: true
+  llm_may_modify_non_negotiables: false
+  override_phrase: "override_contract: feature_specflow_project"
+
+# Structural rules — enforced by specflow_self_compliance.test.js
+# These are NOT pattern-scanning rules (the test validates structure directly).
+structural_rules:
+  - id: PROJ-001
+    title: "Agent files must have required sections"
+    description: >
+      Every agent .md file in agents/ (excluding utility files like README.md,
+      PROTOCOL.md, WORKFLOW.md, agentlist.md, agentnames.md, team-names.md)
+      MUST contain a '## Role' section and a '## Trigger Conditions' or
+      '## Process' section. Without these, the agent cannot be reliably invoked.
+    scope:
+      - "agents/*.md"
+    required_headings:
+      - "## Role"
+    required_one_of:
+      - "## Trigger Conditions"
+      - "## Process"
+
+  - id: PROJ-002
+    title: "Template contracts must have valid schema"
+    description: >
+      Every .yml file in templates/contracts/ MUST parse as valid YAML and
+      contain contract_meta.id, contract_meta.version, llm_policy, and
+      rules.non_negotiable fields. Without these, the contract-loader cannot
+      process them and contract tests will fail.
+    scope:
+      - "templates/contracts/*.yml"
+    required_fields:
+      - "contract_meta.id"
+      - "contract_meta.version"
+      - "llm_policy.enforce"
+      - "rules.non_negotiable"
+
+  - id: PROJ-003
+    title: "Scripts must export for testability"
+    description: >
+      Every .js file in scripts/ MUST export its functions via module.exports.
+      This enables the test suite to verify script behavior without running
+      them as CLI processes. Scripts that don't export are untestable.
+    scope:
+      - "scripts/*.js"
+    required_pattern: "module.exports"
+
+  - id: PROJ-004
+    title: "Key directories must exist"
+    description: >
+      The Specflow project MUST maintain its directory structure: agents/,
+      docs/contracts/, templates/contracts/, scripts/, tests/, hooks/, examples/.
+      Missing directories indicate structural degradation.
+    required_directories:
+      - "agents"
+      - "docs/contracts"
+      - "templates/contracts"
+      - "scripts"
+      - "tests"
+      - "hooks"
+      - "examples"
+
+compliance_checklist:
+  before_editing_files:
+    - question: "Are you modifying an agent .md file?"
+      if_yes: "Ensure it has '## Role' and either '## Trigger Conditions' or '## Process' sections."
+    - question: "Are you modifying a template contract .yml?"
+      if_yes: "Ensure it has contract_meta, llm_policy, and rules.non_negotiable sections."
+    - question: "Are you adding a new script?"
+      if_yes: "Add module.exports for all functions so tests can import them."
+    - question: "Are you removing a key directory?"
+      if_yes: "STOP. This will break project structure. Check PROJ-004."
+
+test_hooks:
+  tests:
+    - file: "tests/contracts/specflow_self_compliance.test.js"
+      description: "Structural validation of the Specflow project itself"

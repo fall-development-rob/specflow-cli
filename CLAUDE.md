@@ -1,12 +1,95 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code when working with Specflow projects.
+This file provides guidance to Claude Code when working with the Specflow repository.
 
 ---
 
-## 🚨 NEW SESSION ONBOARDING
+## Project Context
 
-**If you are a new Claude session and don't know the project context, ASK FIRST:**
+**Repository:** Hulupeep/Specflow
+**Project Board:** GitHub Issues
+**Board CLI:** gh (must be installed and authenticated)
+**Tech Stack:** Node.js, JavaScript, Jest
+**Primary Focus:** Specflow methodology framework — contracts, agents, hooks, templates
+
+---
+
+## Specflow Rules
+
+### Rule 1: No Ticket = No Code
+
+All work requires a GitHub issue before writing any code.
+
+### Rule 2: Commits Must Reference an Issue
+
+**NEVER run `git commit` without a `#<issue-number>` in the message.**
+
+If you don't know the issue number, **ASK** before committing.
+
+```bash
+# Good
+git commit -m "feat: add agent validation (#42)"
+
+# Bad — hooks find nothing, no tests run
+git commit -m "feat: add agent validation"
+```
+
+### Rule 3: Contracts Are Non-Negotiable
+
+Check `docs/contracts/` before modifying protected files.
+
+```bash
+npm test -- contracts    # Must pass
+```
+
+Violation = build fails = PR blocked.
+
+### Rule 4: Tests Must Pass Before Closing
+
+```bash
+npm test                 # All tests (558+)
+npm test -- contracts    # Contract tests only
+npm test -- hooks        # Hook tests only
+npm test -- schema       # Schema validation only
+npm test -- compile      # Compiler tests only
+```
+
+Work is NOT complete if tests fail.
+
+### Contract Locations
+
+| Type | Location |
+|------|----------|
+| Project contracts | `docs/contracts/*.yml` |
+| Template contracts | `templates/contracts/*.yml` |
+| Contract tests | `tests/contracts/*.test.js` |
+| Schema tests | `tests/schema/*.test.js` |
+| Hook tests | `tests/hooks/*.test.js` |
+| Compiler tests | `tests/compile/*.test.js` |
+
+### Active Contracts
+
+| Contract | Protects | Rules |
+|----------|----------|-------|
+| `feature_preflight` | Board-auditor compliance | ARCH-001 through ARCH-008 |
+| `feature_specflow_project` | Project structure & code quality | PROJ-001 through PROJ-004 |
+| `security_defaults` | OWASP patterns | SEC-001 through SEC-005 |
+| `test_integrity_defaults` | Test quality | TEST-001 through TEST-005 |
+| `accessibility_defaults` | A11y patterns | Template default |
+| `production_readiness_defaults` | Production patterns | Template default |
+
+### Override Protocol
+
+Only humans can override. User must say:
+```
+override_contract: <contract_id>
+```
+
+---
+
+## 🚨 NEW SESSION ONBOARDING (For Other Projects)
+
+**If you are using Specflow in a DIFFERENT project and don't know the project context, ASK FIRST:**
 
 Before doing any work, you MUST know:
 
@@ -16,26 +99,7 @@ Before doing any work, you MUST know:
 4. **Current focus** - What wave/milestone/issues should I work on?
 5. **Tech stack** - What framework/language is this project?
 
-**If any of this is missing from your CLAUDE.md context, ASK the user:**
-
-```
-I'm starting a new Specflow session. Before I can help, I need to know:
-
-1. What repository are we working in?
-
-2. Where is your project board?
-   - GitHub Issues/Projects → I'll use `gh` CLI
-   - Jira → I'll need `jira` CLI configured
-   - Linear → I'll need `linear` CLI configured
-   - Notion → I'll need Notion MCP or API
-   - Other → Please specify tool and auth method
-
-3. What should I focus on? (specific issues, milestone, or "show me the backlog")
-
-4. What's the tech stack?
-
-Or point me to a CLAUDE.md with project context already filled in.
-```
+**If any of this is missing from your CLAUDE.md context, ASK the user.**
 
 ### Supported Project Boards
 
@@ -47,7 +111,7 @@ Or point me to a CLAUDE.md with project context already filled in.
 | Shortcut | `sc` | `brew install shortcut-cli` | API token env var |
 | Notion | MCP server | MCP config | API key |
 
-### ⚠️ Commit Message Format (Critical for Hooks)
+### Commit Message Format (Critical for Hooks)
 
 **RULE: NEVER run `git commit` without a `#<issue-number>` in the message.**
 

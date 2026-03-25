@@ -69,12 +69,15 @@ Build fails if spec violated
 
 ## Step-by-Step Conversion Process
 
-### Step 1: Identify Enforceable Requirements
+### Step 1: Identify Enforceable Requirements and Invariants
 
 **Review your spec and highlight:**
 - ✅ **Must have** requirements (critical, non-negotiable)
 - ✅ **Must not** requirements (forbidden patterns)
 - ✅ **Always** requirements (invariants)
+- ✅ **Who does this help / where does it break** findings from persona simulation
+- ✅ **Who can do what** rules (permission/identity invariants)
+- ✅ **Whether there is a direct UI surface**
 - ⚠️ **Should** requirements (soft rules, negotiable)
 
 **Example Spec:**
@@ -96,9 +99,39 @@ Build fails if spec violated
 - #4 → Soft rule (SHOULD = configurable)
 - #5 → Not enforced (MAY = optional)
 
+Before converting, add a traceability block to the spec/ticket:
+- `INVARIANTS`
+- `Persona Simulation`
+- `TESTS`
+- `Playwright: yes/no`
+
+If a requirement is `MUST`, it must map to at least one test.
+If users/developers need to find a surface in the product, add a Playwright journey or explicitly mark it `N/A — no direct UI surface`.
+If simulation reveals a missing prerequisite, permission leak, or workflow break, fix the spec before generating contracts.
+
+### Persona Simulation Is A Contract Input
+
+Persona simulation is not storytelling. It is pre-flight stress testing for the spec.
+
+Use it to discover:
+- hidden prerequisites
+- workflow duplication
+- role/permission leaks
+- data model gaps
+- trust-breaking experience edges
+
+Convert simulation findings into:
+- new `REQS`
+- tightened `INVARIANTS`
+- security tests
+- journey tests
+- `CRITICAL` / `P1` / `P2` findings
+
+Do not carry simulation findings as prose only. If they matter, they must change the spec or tests.
+
 ---
 
-### Step 2: Create Contract Structure
+### Step 2: Create Contract Structure and Test Mapping
 
 **Template:**
 ```yaml
@@ -123,6 +156,25 @@ soft_rules:
   # Add SHOULD requirements here
   - id: [feature]_010
     title: "[Preferred pattern]"
+```
+
+Also keep a simple spec-side test map:
+
+```markdown
+## TESTS
+
+### Feature
+- tests/features/[feature].test.ts
+
+### Contract
+- tests/contracts/[feature].contract.test.ts
+
+### Security
+- tests/security/[feature].test.ts
+
+### Playwright
+- tests/e2e/[journey].spec.ts
+- or: N/A — no direct UI surface
 ```
 
 ---
