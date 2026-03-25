@@ -105,7 +105,7 @@ echo ""
 echo -e "${BLUE}[3/4]${NC} Installing hook files..."
 
 # Copy main hook scripts
-for script in post-build-check.sh run-journey-tests.sh; do
+for script in post-build-check.sh run-journey-tests.sh check-pipeline-compliance.sh; do
   if [ -f "$HOOKS_DIR/$script" ]; then
     cp "$HOOKS_DIR/$script" "$TARGET_DIR/.claude/hooks/"
     chmod +x "$TARGET_DIR/.claude/hooks/$script"
