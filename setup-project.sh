@@ -83,17 +83,26 @@ echo ""
 # 3. Copy default contracts
 # ============================================================================
 
-echo -e "${BLUE}[3/10]${NC} Copying default contracts..."
+echo -e "${BLUE}[3/10]${NC} Copying default contracts (skip existing)..."
 
 CONTRACT_COUNT=0
+CONTRACT_SKIPPED=0
 for contract in "$SCRIPT_DIR/templates/contracts/"*.yml; do
   if [ -f "$contract" ]; then
-    cp "$contract" "$TARGET_DIR/docs/contracts/"
-    CONTRACT_COUNT=$((CONTRACT_COUNT + 1))
+    BASENAME=$(basename "$contract")
+    if [ -f "$TARGET_DIR/docs/contracts/$BASENAME" ]; then
+      CONTRACT_SKIPPED=$((CONTRACT_SKIPPED + 1))
+    else
+      cp "$contract" "$TARGET_DIR/docs/contracts/"
+      CONTRACT_COUNT=$((CONTRACT_COUNT + 1))
+    fi
   fi
 done
 
-echo -e "${GREEN}✓${NC} Copied $CONTRACT_COUNT contract templates to docs/contracts/"
+echo -e "${GREEN}✓${NC} Copied $CONTRACT_COUNT new contract templates to docs/contracts/"
+if [ "$CONTRACT_SKIPPED" -gt 0 ]; then
+  echo -e "${YELLOW}⚠️${NC}  Skipped $CONTRACT_SKIPPED existing contracts (not overwritten)"
+fi
 echo ""
 
 # ============================================================================
@@ -185,9 +194,12 @@ echo ""
 # 6. Create test helpers and contract schema test
 # ============================================================================
 
-echo -e "${BLUE}[6/10]${NC} Creating test infrastructure..."
+echo -e "${BLUE}[6/10]${NC} Creating test infrastructure (skip existing)..."
 
 # Contract loader — reads from docs/contracts/ (not templates/contracts/)
+if [ -f "$TARGET_DIR/tests/helpers/contract-loader.js" ]; then
+  echo -e "${YELLOW}⚠️${NC}  tests/helpers/contract-loader.js already exists — skipping"
+else
 cat > "$TARGET_DIR/tests/helpers/contract-loader.js" <<'LOADER'
 /**
  * Shared helper: parse YAML contracts → extract patterns → compile regex.
@@ -256,10 +268,13 @@ module.exports = {
   CONTRACTS_DIR,
 };
 LOADER
-
 echo -e "${GREEN}✓${NC} Created tests/helpers/contract-loader.js (reads from docs/contracts/)"
+fi
 
 # Contract schema test
+if [ -f "$TARGET_DIR/tests/contracts/contract-schema.test.js" ]; then
+  echo -e "${YELLOW}⚠️${NC}  tests/contracts/contract-schema.test.js already exists — skipping"
+else
 cat > "$TARGET_DIR/tests/contracts/contract-schema.test.js" <<'SCHEMATEST'
 /**
  * Schema validation tests for all contracts in docs/contracts/.
@@ -355,8 +370,8 @@ describe('Contract Schema Validation', () => {
   });
 });
 SCHEMATEST
-
 echo -e "${GREEN}✓${NC} Created tests/contracts/contract-schema.test.js"
+fi
 echo ""
 
 # ============================================================================
