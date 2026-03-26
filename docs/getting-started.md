@@ -448,6 +448,42 @@ bash /path/to/Specflow/verify-setup.sh
 
 ---
 
+## Updating an Existing Setup
+
+Already have Specflow installed? Paste one of these into Claude Code.
+
+### Update everything and verify
+
+```
+Pull the latest Specflow from /path/to/Specflow (or git pull it first).
+Run bash /path/to/Specflow/setup-project.sh . to update my setup.
+Then run bash /path/to/Specflow/verify-setup.sh from my project root.
+Fix every failure — I want 0 failures before we start any tickets.
+```
+
+### Hooks only (lighter update)
+
+```
+Run bash /path/to/Specflow/install-hooks.sh . --ci to install all hooks
+and CI workflows. Then run bash /path/to/Specflow/verify-setup.sh and
+fix every failure. Show me the full verify-setup output when done.
+```
+
+### Check without changing anything
+
+```
+Run bash /path/to/Specflow/verify-setup.sh from my project root and
+show me the full output. Don't fix anything yet — I want to see what's
+missing first.
+```
+
+**Notes:**
+- `setup-project.sh` is safe to re-run — it skips files that already exist (package.json, jest.config.js, etc.) and backs up settings.json before merging
+- Replace `/path/to/Specflow` with wherever Specflow lives relative to your project
+- `--ci` installs GitHub Actions workflows (specflow-compliance.yml + specflow-audit.yml)
+
+---
+
 > **Understand how it works deeper?** See [How It Works](how-it-works.md)
 > **Using with a team?** See [Team Workflows](team-workflows.md)
 > **Setting up CI?** See [CI Integration](../CI-INTEGRATION.md)

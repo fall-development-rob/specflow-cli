@@ -44,6 +44,19 @@ Execute waves
 
 For all setup paths (manual, SKILL.md, Claude-assisted), see [Getting Started](docs/getting-started.md).
 
+### Already have Specflow? Update it.
+
+Paste this into Claude Code:
+
+```
+Pull the latest Specflow from /path/to/Specflow (or git pull it first).
+Run bash /path/to/Specflow/setup-project.sh . to update my setup.
+Then run bash /path/to/Specflow/verify-setup.sh and fix every failure.
+I want 0 failures before we start any tickets.
+```
+
+The setup script is safe to re-run — it skips existing files and backs up settings before merging. See [Updating an Existing Setup](docs/getting-started.md#updating-an-existing-setup) for more options.
+
 ---
 
 ## What "Specflow-Compliant" Actually Means
