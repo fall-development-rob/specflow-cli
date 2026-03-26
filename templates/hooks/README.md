@@ -121,6 +121,24 @@ The hooks are registered via `.claude/settings.json`. The `install-hooks.sh` scr
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/post-push-ci.sh"
           }
         ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/check-pipeline-compliance.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/check-pipeline-compliance.sh"
+          }
+        ]
       }
     ]
   }
@@ -152,10 +170,19 @@ fi
 
 ## Disabling Hooks
 
-### Defer individual hooks
+### Per-journey deferral (recommended)
+
+Use `.claude/.defer-journal` to skip specific journeys with a tracking issue:
 
 ```bash
-touch .claude/.defer-tests       # Skip journey tests (build/commit hook)
+# In .claude/.defer-journal, add:
+# J-SIGNUP-FLOW: blocked by auth refactor (#42)
+```
+
+### Defer individual hooks (global)
+
+```bash
+touch .claude/.defer-tests       # Skip all journey tests (legacy global defer)
 touch .claude/.defer-ci-check    # Skip CI status check (push hook)
 ```
 

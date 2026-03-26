@@ -1,8 +1,10 @@
-# Specflow Journey Verification Hooks
+# Specflow Development Hooks
 
-Claude Code hooks that **automatically run Playwright tests** after builds/commits.
+Claude Code hooks that enforce contracts at three trigger points: **journey tests** after builds/commits, **pipeline compliance** on Write/Edit, and **CI polling** after push.
 
 ## What It Does
+
+### Journey verification (build/commit)
 
 After a successful `pnpm build` or `git commit`:
 
@@ -11,6 +13,20 @@ After a successful `pnpm build` or `git commit`:
 3. **Maps to test files** (e.g., `tests/e2e/journey_signup_flow.spec.ts`)
 4. **Runs only those tests** - not the full suite
 5. **Blocks on failure** - shows error to Claude with exit code 2
+
+### Pipeline compliance (Write/Edit)
+
+After every Write or Edit tool use:
+
+1. **Checks the written/edited file** against contract forbidden patterns
+2. **Blocks on violation** - shows contract ID and message to model
+
+### CI polling (push)
+
+After `git push`:
+
+1. **Polls GitHub Actions** for the latest workflow run status
+2. **Reports pass/fail** (advisory, does not block)
 
 ## Requirements
 
@@ -40,6 +56,8 @@ chmod +x .claude/hooks/*.sh
 | `settings.json` | Claude Code hook configuration |
 | `post-build-check.sh` | Detects build/commit commands, triggers tests |
 | `run-journey-tests.sh` | Finds issues → journeys → runs relevant tests |
+| `check-pipeline-compliance.sh` | Checks written/edited files against contract patterns |
+| `post-push-ci.sh` | Polls GitHub Actions CI status after push |
 | `session-start.sh` | Placeholder (silent) |
 
 ## Flow
@@ -65,13 +83,20 @@ Exit 0 (pass) or Exit 2 (fail → show to model)
 
 ## Deferring Tests
 
-If tests are slow or you need to skip temporarily:
+**Per-journey deferral (recommended):** Use `.claude/.defer-journal` to skip specific journeys with a tracking issue. This is scoped and auditable.
 
 ```bash
-# Defer tests
+# In .claude/.defer-journal, add:
+# J-SIGNUP-FLOW: blocked by auth refactor (#42)
+```
+
+**Global deferral (legacy):** Use `.defer-tests` to skip all journey tests temporarily.
+
+```bash
+# Defer all tests
 touch .claude/.defer-tests
 
-# Re-enable tests
+# Re-enable all tests
 rm .claude/.defer-tests
 ```
 

@@ -49,7 +49,7 @@ else
   BASE_URL="https://raw.githubusercontent.com/Hulupeep/Specflow/main/hooks"
   TEMPLATES_URL="https://raw.githubusercontent.com/Hulupeep/Specflow/main/templates/hooks"
 
-  for file in settings.json post-build-check.sh run-journey-tests.sh session-start.sh README.md; do
+  for file in settings.json post-build-check.sh run-journey-tests.sh session-start.sh check-pipeline-compliance.sh commit-msg README.md; do
     curl -fsSL "$BASE_URL/$file" -o "$HOOKS_DIR/$file" 2>/dev/null || {
       echo -e "${YELLOW}Warning: Could not download $file${NC}"
     }
@@ -69,7 +69,7 @@ echo ""
 # 1. Check requirements
 # ============================================================================
 
-echo -e "${BLUE}[1/4]${NC} Checking requirements..."
+echo -e "${BLUE}[1/5]${NC} Checking requirements..."
 
 if ! command -v jq &> /dev/null; then
   echo -e "${RED}✗${NC}  jq not found — required for hook JSON parsing"
@@ -91,7 +91,7 @@ echo ""
 # 2. Create .claude directory structure
 # ============================================================================
 
-echo -e "${BLUE}[2/4]${NC} Creating .claude directory structure..."
+echo -e "${BLUE}[2/5]${NC} Creating .claude directory structure..."
 
 mkdir -p "$TARGET_DIR/.claude/hooks"
 
@@ -102,10 +102,10 @@ echo ""
 # 3. Copy hook files
 # ============================================================================
 
-echo -e "${BLUE}[3/4]${NC} Installing hook files..."
+echo -e "${BLUE}[3/5]${NC} Installing hook files..."
 
 # Copy main hook scripts
-for script in post-build-check.sh run-journey-tests.sh check-pipeline-compliance.sh; do
+for script in post-build-check.sh run-journey-tests.sh check-pipeline-compliance.sh session-start.sh; do
   if [ -f "$HOOKS_DIR/$script" ]; then
     cp "$HOOKS_DIR/$script" "$TARGET_DIR/.claude/hooks/"
     chmod +x "$TARGET_DIR/.claude/hooks/$script"

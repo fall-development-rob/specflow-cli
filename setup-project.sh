@@ -11,10 +11,9 @@
 #   4. Creates contract schema tests
 #   5. Initializes git (if needed) with commit-msg hook
 #   6. Creates .specflow baseline and .defer-journal
-#   7. Creates CLAUDE.md from template
-#   8. Installs npm dependencies
-#   9. Runs tests to verify
-#  10. Runs verify-setup.sh
+#   7. Installs npm dependencies
+#   8. Runs tests to verify
+#   9. Runs verify-setup.sh
 
 set -e
 
@@ -435,7 +434,7 @@ echo ""
 
 echo -e "${BLUE}[10/10]${NC} Installing dependencies and verifying..."
 
-(cd "$TARGET_DIR" && npm install --quiet 2>&1 | tail -3)
+(cd "$TARGET_DIR" && npm install --quiet) || { echo -e "${RED}npm install failed${NC}"; exit 1; }
 echo ""
 
 echo -e "${BLUE}Running contract tests...${NC}"
@@ -446,7 +445,11 @@ echo -e "${BLUE}Running contract tests...${NC}"
 
 echo ""
 echo -e "${BLUE}Running verify-setup...${NC}"
-bash "$SCRIPT_DIR/verify-setup.sh" "$TARGET_DIR" 2>&1 | grep -E '(Passed|Warnings|Failed|✅|⚠️|❌)' | tail -10
+(cd "$TARGET_DIR" && bash "$SCRIPT_DIR/verify-setup.sh")
+VERIFY_EXIT=$?
+if [ "$VERIFY_EXIT" -ne 0 ]; then
+  echo -e "${RED}verify-setup reported failures${NC}"
+fi
 
 echo ""
 

@@ -31,10 +31,11 @@ describe('hooks/settings.json (Bug 2 fix)', () => {
     expect(commands.some((c) => c.includes('post-push-ci.sh'))).toBe(true);
   });
 
-  test('all entries use Bash matcher', () => {
+  test('all entries use valid matchers (Bash, Write, or Edit)', () => {
     const settings = JSON.parse(fs.readFileSync(SETTINGS_PATH, 'utf-8'));
+    const validMatchers = ['Bash', 'Write', 'Edit'];
     for (const entry of settings.hooks.PostToolUse) {
-      expect(entry.matcher).toBe('Bash');
+      expect(validMatchers).toContain(entry.matcher);
     }
   });
 });
@@ -78,12 +79,12 @@ describe('install-hooks.sh', () => {
     });
   });
 
-  describe('session-start.sh not installed (Bug 8 fix)', () => {
-    test('does not install session-start.sh', () => {
+  describe('session-start.sh installed', () => {
+    test('installs session-start.sh', () => {
       runInstaller();
       expect(
         fs.existsSync(path.join(targetDir, '.claude', 'hooks', 'session-start.sh'))
-      ).toBe(false);
+      ).toBe(true);
     });
   });
 

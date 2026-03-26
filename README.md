@@ -28,48 +28,21 @@ Contract tests scan your source code for forbidden patterns. Break a rule → CI
 
 ## Get Started
 
-**Step 1: Copy Specflow into your project**
+**One command installs everything:**
 
 ```bash
-cp -r Specflow/ your-project/docs/Specflow/
+bash /path/to/Specflow/setup-project.sh /path/to/your/project
 ```
 
-**Step 2: Install agents and update your CLAUDE.md**
+This creates contracts, agents, hooks, tests, and verifies everything passes.
 
-Tell Claude Code:
-
-```
-Read Specflow/README.md and set up my project with Specflow agents
-including updating my CLAUDE.md.
-```
-
-**Step 3: Make your issues specflow-compliant**
-
-Tell Claude Code one of the following depending on your situation:
-
-*Existing issues on GitHub:*
-```
-Update my issues (or issues 10–23) on project board [myboard] on GitHub
-and make them specflow compliant.
-```
-
-*Starting fresh with new stories:*
-```
-Create specflow-compliant issues on [myboard] for [feature or description].
-```
-
-*No board yet — just start building:*
-```
-Execute waves and create specflow contracts as we go.
-```
-
-**Step 4: Execute your backlog**
+**Then update CLAUDE.md** with your project context and tell Claude Code:
 
 ```
 Execute waves
 ```
 
-Claude builds a dependency graph from your issues and executes them in parallel waves.
+For all setup paths (manual, SKILL.md, Claude-assisted), see [Getting Started](docs/getting-started.md).
 
 ---
 

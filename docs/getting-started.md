@@ -339,8 +339,8 @@ npm install
 # Run contract tests
 npm test
 
-# Verify full setup
-bash /path/to/Specflow/verify-setup.sh .
+# Verify full setup (run from your project root)
+bash /path/to/Specflow/verify-setup.sh
 ```
 
 **Expected:** All tests pass. verify-setup shows 20+ passed, 0 failed.
@@ -370,21 +370,27 @@ For the full 23+ agent experience, use Path A or see [agents/README.md](../agent
 ### Step 1: Add Specflow to your project
 
 ```bash
-cp -r Specflow/ your-project/docs/Specflow/
+cp -r /path/to/Specflow/ your-project/Specflow/
 # or
-git clone https://github.com/Hulupeep/Specflow.git your-project/docs/Specflow
+git clone https://github.com/Hulupeep/Specflow.git your-project/Specflow
 ```
 
-### Step 2: Tell Claude Code
+### Step 2: Run the setup script
 
-```
-Read Specflow/README.md and set up my project with Specflow agents including updating
-my CLAUDE.md to run the right agents at the right time. Use the claude template
-CLAUDE-MD-TEMPLATE.md in specflow to update the claude.md.
-Then make my issues compliant and execute my backlog in waves.
+```bash
+cd your-project
+bash Specflow/setup-project.sh .
 ```
 
-**Note:** Claude may miss steps. If tests don't pass or verify-setup shows failures, run:
+### Step 3: Tell Claude Code to handle the rest
+
+```
+Read docs/getting-started.md and set up my CLAUDE.md using the template
+CLAUDE-MD-TEMPLATE.md in Specflow. Then make my issues compliant and
+execute my backlog in waves.
+```
+
+**Note:** Claude may miss steps. If tests don't pass or verify-setup shows failures, re-run:
 
 ```bash
 bash Specflow/setup-project.sh .
@@ -417,10 +423,10 @@ This fills in anything Claude missed.
 
 ## Verify Setup
 
-After any path, run:
+After any path, run from your project root:
 
 ```bash
-bash /path/to/Specflow/verify-setup.sh .
+bash /path/to/Specflow/verify-setup.sh
 ```
 
 **Passing setup shows:**

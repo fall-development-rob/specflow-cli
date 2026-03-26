@@ -216,6 +216,13 @@ if [ -f "CLAUDE.md" ]; then
         check_warn "CLAUDE.md should include contract enforcement instructions"
     fi
 
+    # Check for unfilled template placeholders
+    if grep -q '\[org/repo-name\]' CLAUDE.md 2>/dev/null || grep -q '\[GitHub Issues | Jira' CLAUDE.md 2>/dev/null; then
+        check_warn "CLAUDE.md still has template placeholders — fill in your project context"
+    else
+        check_pass "CLAUDE.md has no unfilled template placeholders"
+    fi
+
     # Check for architecture section
     if grep -qi "architecture\|arch-" CLAUDE.md; then
         check_pass "CLAUDE.md has architecture guidance"
@@ -319,7 +326,7 @@ if [ -d ".claude/hooks" ]; then
     check_pass ".claude/hooks/ directory exists"
 
     # Check for expected hook scripts (file presence + executable bit)
-    HOOK_SCRIPTS=("post-build-check.sh" "run-journey-tests.sh" "post-push-ci.sh" "session-start.sh")
+    HOOK_SCRIPTS=("post-build-check.sh" "run-journey-tests.sh" "post-push-ci.sh" "session-start.sh" "check-pipeline-compliance.sh")
     HOOKS_FOUND=0
 
     for hook in "${HOOK_SCRIPTS[@]}"; do
@@ -343,7 +350,7 @@ fi
 # Check for git commit-msg hook (enforces issue numbers)
 if [ -d ".git/hooks" ]; then
     if [ -x ".git/hooks/commit-msg" ]; then
-        if grep -q '#\[0-9\]' .git/hooks/commit-msg 2>/dev/null; then
+        if grep -qF '#[0-9]' .git/hooks/commit-msg 2>/dev/null; then
             check_pass ".git/hooks/commit-msg enforces issue numbers"
         else
             check_warn ".git/hooks/commit-msg exists but may not enforce issue numbers"
