@@ -21,11 +21,9 @@
     "scripts/specflow-compile.cjs",
     "scripts/verify-graph.cjs",
     "scripts/install.sh",
-    "examples/",
+    "docs/CI-INTEGRATION.md",
     "CLAUDE.md",
     "CLAUDE-MD-TEMPLATE.md",
-    "SKILL.md",
-    "CI-INTEGRATION.md",
     "LICENSE"
   ],
   "scripts": {

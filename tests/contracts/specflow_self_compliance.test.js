@@ -151,7 +151,6 @@ describe('PROJ-004: Key directories must exist', () => {
     'scripts',
     'tests',
     'hooks',
-    'examples',
   ];
 
   test.each(requiredDirs)('%s/ directory exists', (dir) => {

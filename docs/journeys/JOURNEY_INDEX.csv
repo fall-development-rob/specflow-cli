@@ -1,6 +1,0 @@
-journey_id,display_name,persona,epic_issue,figma_file_id,figma_page,status,step_count,linked_steps,gate_count,readiness_pct,owner,last_synced
-# This file is auto-updated by journey:sync and journey:annotate
-# Do not edit manually — changes will be overwritten on next sync
-# Format: one row per journey (not per path/persona variant)
-# status: active | paused | deprecated
-# readiness_pct: (linked_steps / step_count) * 100, rounded to nearest integer
