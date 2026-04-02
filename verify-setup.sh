@@ -357,12 +357,12 @@ if [ -d ".github/workflows" ]; then
     if [ -f ".github/workflows/specflow-compliance.yml" ]; then
         check_pass "specflow-compliance.yml workflow installed (PR gate)"
     else
-        check_warn "specflow-compliance.yml not found (install with: bash Specflow/install-hooks.sh . --ci)"
+        check_warn "specflow-compliance.yml not found (install with: npx @colmbyrne/specflow update . --ci)"
     fi
     if [ -f ".github/workflows/specflow-audit.yml" ]; then
         check_pass "specflow-audit.yml workflow installed (post-merge audit)"
     else
-        check_warn "specflow-audit.yml not found (install with: bash Specflow/install-hooks.sh . --ci)"
+        check_warn "specflow-audit.yml not found (install with: npx @colmbyrne/specflow update . --ci)"
     fi
 fi
 
@@ -414,7 +414,7 @@ if [ -d ".claude/hooks" ]; then
         check_info "All ${#HOOK_SCRIPTS[@]} hook scripts installed"
     fi
 else
-    check_warn ".claude/hooks/ directory not found (run: bash Specflow/install-hooks.sh .)"
+    check_warn ".claude/hooks/ directory not found (run: npx @colmbyrne/specflow update .)"
 fi
 
 # Check for git commit-msg hook (enforces issue numbers)
@@ -715,7 +715,7 @@ else
         TOTAL_ISSUES=$((OUTDATED + MISSING_LOCAL))
         check_fail "$TOTAL_ISSUES version issue(s): $OUTDATED outdated, $MISSING_LOCAL missing"
         echo "" >&2
-        echo -e "  ${BLUE}Fix:${NC} bash $SPECFLOW_SRC/install-hooks.sh . --ci" >&2
+        echo -e "  ${BLUE}Fix:${NC} npx @colmbyrne/specflow update . --ci" >&2
     fi
 fi
 
