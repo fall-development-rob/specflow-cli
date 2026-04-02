@@ -80,19 +80,21 @@ const COMMANDS = {
 
       console.log(`\n  ${passCount}/${checks.length} checks passed\n`);
 
-      if (passCount === checks.length) {
+      const missing = checks.filter(c => !c.pattern.test(fullText)).map(c => c.name);
+
+      if (missing.length === 0) {
         console.log('  VERDICT: Compliant\n');
-      } else if (passCount >= 4) {
-        console.log('  VERDICT: Needs uplift\n');
-        console.log('  NEXT ACTIONS:');
-        for (const check of checks) {
-          if (!check.pattern.test(fullText)) {
-            console.log(`  - [ ] Add ${check.name} section to issue #${issue}`);
-          }
+      } else {
+        console.log(`  VERDICT: ${missing.length > 7 ? 'Non-compliant' : 'Needs uplift'}\n`);
+        console.log('  FIX: Tell Claude Code in your project:\n');
+        console.log(`  "Read scripts/agents/specflow-writer.md and uplift issue #${issue}.`);
+        console.log(`   It's missing: ${missing.join(', ')}.`);
+        console.log('   Add the missing sections to the issue body."\n');
+        console.log('  MISSING:');
+        for (const name of missing) {
+          console.log(`  - ${name}`);
         }
         console.log('');
-      } else {
-        console.log('  VERDICT: Non-compliant — needs full specflow-writer pass\n');
       }
     },
   },
