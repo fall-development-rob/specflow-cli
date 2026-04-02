@@ -357,12 +357,12 @@ if [ -d ".github/workflows" ]; then
     if [ -f ".github/workflows/specflow-compliance.yml" ]; then
         check_pass "specflow-compliance.yml workflow installed (PR gate)"
     else
-        check_warn "specflow-compliance.yml not found (install with: bash Specflow/install-hooks.sh . --ci)"
+        check_warn "specflow-compliance.yml not found (install with: npx @colmbyrne/specflow update . --ci)"
     fi
     if [ -f ".github/workflows/specflow-audit.yml" ]; then
         check_pass "specflow-audit.yml workflow installed (post-merge audit)"
     else
-        check_warn "specflow-audit.yml not found (install with: bash Specflow/install-hooks.sh . --ci)"
+        check_warn "specflow-audit.yml not found (install with: npx @colmbyrne/specflow update . --ci)"
     fi
 fi
 
@@ -414,7 +414,7 @@ if [ -d ".claude/hooks" ]; then
         check_info "All ${#HOOK_SCRIPTS[@]} hook scripts installed"
     fi
 else
-    check_warn ".claude/hooks/ directory not found (run: bash Specflow/install-hooks.sh .)"
+    check_warn ".claude/hooks/ directory not found (run: npx @colmbyrne/specflow update .)"
 fi
 
 # Check for git commit-msg hook (enforces issue numbers)
@@ -693,17 +693,37 @@ else
         ((MISSING_LOCAL++))
     fi
 
-    # settings.json hook wiring
-    if [ -f ".claude/settings.json" ] && [ -f "$SPECFLOW_SRC/hooks/settings.json" ] && command -v jq &> /dev/null; then
-        if diff <(jq -S '.hooks' .claude/settings.json 2>/dev/null) <(jq -S '.hooks' "$SPECFLOW_SRC/hooks/settings.json" 2>/dev/null) > /dev/null 2>&1; then
-            printf "  ${GREEN}%-32s %-10s %-10s %s${NC}\n" "settings.json (hooks)" "✅ in sync" "CRITICAL" ""
-        else
-            printf "  ${YELLOW}%-32s %-10s %-10s %s${NC}\n" "settings.json (hooks)" "⚠ DIFFERS" "CRITICAL" "Hook matchers may be missing — Write/Edit/Bash hooks won't fire"
-            check_warn "settings.json hooks differ from source (may have project-specific additions — review manually)"
+    # settings.json hook wiring — subset check (verify each required matcher is present)
+    if [ -f ".claude/settings.json" ] && command -v jq &> /dev/null; then
+        SETTINGS_MISSING=0
+        REGISTERED=$(jq -r '.hooks.PostToolUse[]? | "\(.matcher)|\(.hooks[]?.command // empty)"' .claude/settings.json 2>/dev/null)
+
+        # Each required entry: matcher|command_fragment|severity|impact
+        REQUIRED_MATCHERS=(
+            "Write|check-pipeline-compliance.sh|CRITICAL|Contract violations not caught when Claude creates files"
+            "Edit|check-pipeline-compliance.sh|CRITICAL|Contract violations not caught when Claude edits files"
+            "Bash|post-build-check.sh|CRITICAL|Journey tests never trigger after builds/commits"
+            "Bash|post-push-ci.sh|MEDIUM|No CI feedback after push"
+        )
+
+        for entry in "${REQUIRED_MATCHERS[@]}"; do
+            IFS='|' read -r matcher cmd_frag severity impact <<< "$entry"
+            if echo "$REGISTERED" | grep -q "^${matcher}|.*${cmd_frag}"; then
+                printf "  ${GREEN}%-32s %-10s %-10s %s${NC}\n" "settings.json ${matcher}→${cmd_frag}" "✅ wired" "$severity" ""
+            else
+                printf "  ${RED}%-32s %-10s %-10s %s${NC}\n" "settings.json ${matcher}→${cmd_frag}" "❌ MISSING" "$severity" "$impact"
+                ((SETTINGS_MISSING++))
+            fi
+        done
+
+        if [ "$SETTINGS_MISSING" -gt 0 ]; then
+            check_fail "$SETTINGS_MISSING settings.json matcher(s) missing — run: npx @colmbyrne/specflow update ."
         fi
     elif [ ! -f ".claude/settings.json" ]; then
         printf "  ${RED}%-32s %-10s %-10s %s${NC}\n" "settings.json" "❌ MISSING" "CRITICAL" "No hooks wired to Claude — nothing fires on build, commit, write, or edit"
         ((MISSING_LOCAL++))
+    else
+        check_warn "jq not installed — cannot verify settings.json matchers"
     fi
 
     echo ""
@@ -715,7 +735,7 @@ else
         TOTAL_ISSUES=$((OUTDATED + MISSING_LOCAL))
         check_fail "$TOTAL_ISSUES version issue(s): $OUTDATED outdated, $MISSING_LOCAL missing"
         echo "" >&2
-        echo -e "  ${BLUE}Fix:${NC} bash $SPECFLOW_SRC/install-hooks.sh . --ci" >&2
+        echo -e "  ${BLUE}Fix:${NC} npx @colmbyrne/specflow update . --ci" >&2
     fi
 fi
 
