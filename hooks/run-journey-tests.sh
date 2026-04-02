@@ -65,7 +65,15 @@ get_journey_for_issue() {
 
     all_text="$body
 $comments"
-    echo "$all_text" | grep -oE 'J-[A-Z0-9]+(-[A-Z0-9]+)*' | sort -u | head -5
+    local all_journeys
+    all_journeys=$(echo "$all_text" | grep -oE 'J-[A-Z0-9]+(-[A-Z0-9]+)*' | sort -u)
+    local count=$(echo "$all_journeys" | grep -c . 2>/dev/null || echo 0)
+    if [ "$count" -gt 20 ]; then
+        echo "  ⚠ #$issue_num has $count journey IDs — processing first 20" >&2
+        echo "$all_journeys" | head -20
+    else
+        echo "$all_journeys"
+    fi
 }
 
 # Function to find test file for a journey ID
@@ -165,7 +173,16 @@ main() {
     TEST_FILES=$(echo "$TEST_FILES" | tr ' ' '\n' | sort -u | tr '\n' ' ' | xargs)
 
     if [ -z "$TEST_FILES" ]; then
-        echo "No journey tests to run for these issues." >&2
+        # Check if we found journeys but no test files matched
+        JOURNEY_COUNT=$(echo "$ISSUES" | wc -w)
+        if [ "$JOURNEY_COUNT" -gt 0 ]; then
+            echo "" >&2
+            echo "⚠️  Journey IDs were found in issues but NO test files matched." >&2
+            echo "   This means journey contracts exist but tests are missing or misnamed." >&2
+            echo "   Check: docs/contracts/journey_*.yml → test_hooks.e2e_test_file" >&2
+        else
+            echo "No journey tests to run for these issues." >&2
+        fi
         exit 0
     fi
 

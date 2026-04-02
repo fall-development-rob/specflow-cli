@@ -165,16 +165,16 @@ if [ -f "$TARGET_DIR/.claude/settings.json" ]; then
       echo -e "${GREEN}✓${NC} Merged hooks into existing settings.json (preserved existing hooks)"
     else
       rm -f "$TEMP_SETTINGS"
-      echo -e "${YELLOW}⚠️${NC}  jq merge failed — backing up and replacing settings.json"
-      cp "$TARGET_DIR/.claude/settings.json" "$TARGET_DIR/.claude/settings.json.backup"
-      cp "$HOOKS_DIR/settings.json" "$TARGET_DIR/.claude/settings.json"
-      echo -e "${GREEN}✓${NC} Installed .claude/settings.json (backup: settings.json.backup)"
+      echo -e "${RED}✗${NC}  Cannot merge settings.json — existing PostToolUse structure is incompatible"
+      echo -e "    Your settings.json was NOT changed."
+      echo -e "    To fix: manually add the hooks from $HOOKS_DIR/settings.json"
+      echo -e "    Or: delete .claude/settings.json and re-run this script"
     fi
   else
-    echo -e "${YELLOW}⚠️${NC}  jq not found - backing up and replacing settings.json"
-    cp "$TARGET_DIR/.claude/settings.json" "$TARGET_DIR/.claude/settings.json.backup"
-    cp "$HOOKS_DIR/settings.json" "$TARGET_DIR/.claude/settings.json"
-    echo -e "${GREEN}✓${NC} Installed .claude/settings.json (backup: settings.json.backup)"
+    echo -e "${RED}✗${NC}  jq required to merge with existing settings.json"
+    echo -e "    Your settings.json was NOT changed."
+    echo -e "    Install jq: apt install jq (linux) / brew install jq (mac)"
+    echo -e "    Then re-run this script."
   fi
 else
   cp "$HOOKS_DIR/settings.json" "$TARGET_DIR/.claude/settings.json"

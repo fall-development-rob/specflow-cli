@@ -104,7 +104,8 @@ echo "-----------------"
 CONTRACT_COUNT=0
 
 if [ -n "$CONTRACT_DIR" ]; then
-    CONTRACT_COUNT=$(find "$CONTRACT_DIR" -maxdepth 1 -name "*.yml" -o -name "*.yaml" 2>/dev/null | wc -l)
+    # Only count files matching contract naming conventions (feature_*, journey_*, *_defaults, CONTRACT_INDEX)
+    CONTRACT_COUNT=$(find "$CONTRACT_DIR" -maxdepth 1 \( -name "feature_*.yml" -o -name "feature_*.yaml" -o -name "journey_*.yml" -o -name "journey_*.yaml" -o -name "*_defaults.yml" -o -name "*_defaults.yaml" -o -name "CONTRACT_INDEX.yml" -o -name "CONTRACT_INDEX.yaml" \) 2>/dev/null | wc -l)
 
     if [ "$CONTRACT_COUNT" -gt 0 ]; then
         check_pass "Found $CONTRACT_COUNT contract file(s) in $CONTRACT_DIR/"

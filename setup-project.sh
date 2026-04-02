@@ -419,15 +419,37 @@ echo ""
 
 echo -e "${BLUE}[8/10]${NC} Setting up git..."
 
-if [ ! -d "$TARGET_DIR/.git" ]; then
+# Check for .git in target or any parent directory (monorepo detection)
+find_git_root() {
+  local dir="$1"
+  while [ "$dir" != "/" ]; do
+    if [ -d "$dir/.git" ]; then
+      echo "$dir"
+      return 0
+    fi
+    dir="$(dirname "$dir")"
+  done
+  return 1
+}
+
+GIT_ROOT=$(find_git_root "$TARGET_DIR") || GIT_ROOT=""
+
+if [ -d "$TARGET_DIR/.git" ]; then
+  echo -e "${GREEN}✓${NC} Git repo already initialized"
+elif [ -n "$GIT_ROOT" ]; then
+  echo -e "${YELLOW}⚠️${NC}  Git repo detected in parent: $GIT_ROOT — skipping git init"
+  echo -e "    commit-msg hook will be installed in $GIT_ROOT/.git/hooks/"
+  TARGET_GIT_DIR="$GIT_ROOT/.git"
+else
   (cd "$TARGET_DIR" && git init)
   echo -e "${GREEN}✓${NC} Initialized git repository"
 fi
 
+COMMIT_HOOK_DIR="${TARGET_GIT_DIR:-$TARGET_DIR/.git}/hooks"
 if [ -f "$SCRIPT_DIR/hooks/commit-msg" ]; then
-  mkdir -p "$TARGET_DIR/.git/hooks"
-  cp "$SCRIPT_DIR/hooks/commit-msg" "$TARGET_DIR/.git/hooks/commit-msg"
-  chmod +x "$TARGET_DIR/.git/hooks/commit-msg"
+  mkdir -p "$COMMIT_HOOK_DIR"
+  cp "$SCRIPT_DIR/hooks/commit-msg" "$COMMIT_HOOK_DIR/commit-msg"
+  chmod +x "$COMMIT_HOOK_DIR/commit-msg"
   echo -e "${GREEN}✓${NC} Installed .git/hooks/commit-msg"
 fi
 

@@ -32,7 +32,11 @@ is_commit_command() {
 
 # Check if build/commit was successful (exit code 0 in response)
 was_successful() {
-    local exit_code=$(echo "$INPUT" | jq -r '.response.exit_code // .response.exitCode // "0"' 2>/dev/null)
+    local exit_code=$(echo "$INPUT" | jq -r '.response.exit_code // .response.exitCode // empty' 2>/dev/null)
+    if [ -z "$exit_code" ]; then
+        echo "Warning: could not determine build exit code — skipping tests" >&2
+        return 1
+    fi
     [ "$exit_code" = "0" ]
 }
 
@@ -48,8 +52,13 @@ if is_build_command "$COMMAND" || is_commit_command "$COMMAND"; then
         if [ -x "$HOOK_DIR/run-journey-tests.sh" ]; then
             "$HOOK_DIR/run-journey-tests.sh"
             exit $?
+        elif [ -f "$HOOK_DIR/run-journey-tests.sh" ]; then
+            echo "❌ run-journey-tests.sh exists but is not executable" >&2
+            echo "   Fix: chmod +x $HOOK_DIR/run-journey-tests.sh" >&2
+            echo "   Skip: touch $PROJECT_DIR/.claude/.defer-tests" >&2
+            exit 2
         else
-            echo "Warning: run-journey-tests.sh not found or not executable" >&2
+            echo "Warning: run-journey-tests.sh not found — skipping journey tests" >&2
             exit 0
         fi
     fi
