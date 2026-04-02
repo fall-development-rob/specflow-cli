@@ -569,6 +569,87 @@ else
 fi
 
 echo ""
+echo "13. Version Check (local vs Specflow source)"
+echo "----------------------------------------------"
+
+# Determine Specflow source directory (where this script lives)
+SPECFLOW_SRC="$(cd "$(dirname "$0")" 2>/dev/null && pwd)"
+
+if [ "$SPECFLOW_SRC" = "$(pwd)" ]; then
+    check_info "Running inside the Specflow repo itself — version check not applicable"
+else
+    OUTDATED=0
+    MISSING_LOCAL=0
+
+    # Each entry: file|source_path|severity|impact
+    VERSION_CHECKS=(
+        "post-build-check.sh|$SPECFLOW_SRC/hooks/post-build-check.sh|CRITICAL|Journey tests never trigger after builds/commits — violations ship undetected"
+        "run-journey-tests.sh|$SPECFLOW_SRC/hooks/run-journey-tests.sh|CRITICAL|Issue-to-test mapping broken — no targeted Playwright runs, old version uses broken heuristic naming"
+        "check-pipeline-compliance.sh|$SPECFLOW_SRC/hooks/check-pipeline-compliance.sh|HIGH|Contract violations not caught on Write/Edit — Claude can break contracts without warning"
+        "post-push-ci.sh|$SPECFLOW_SRC/templates/hooks/post-push-ci.sh|MEDIUM|No CI feedback after push — you check GitHub Actions manually"
+        "session-start.sh|$SPECFLOW_SRC/hooks/session-start.sh|LOW|No session init — placeholder with no current function"
+    )
+
+    echo ""
+    printf "  %-32s %-10s %-10s %s\n" "FILE" "STATUS" "SEVERITY" "IF MISSING/OUTDATED..."
+    printf "  %-32s %-10s %-10s %s\n" "----" "------" "--------" "-----------------------"
+
+    for entry in "${VERSION_CHECKS[@]}"; do
+        IFS='|' read -r fname src_path severity impact <<< "$entry"
+
+        if [ -f ".claude/hooks/$fname" ] && [ -f "$src_path" ]; then
+            if diff -q ".claude/hooks/$fname" "$src_path" > /dev/null 2>&1; then
+                printf "  ${GREEN}%-32s %-10s %-10s %s${NC}\n" "$fname" "✅ current" "$severity" ""
+            else
+                printf "  ${RED}%-32s %-10s %-10s %s${NC}\n" "$fname" "⚠ OUTDATED" "$severity" "$impact"
+                ((OUTDATED++))
+            fi
+        elif [ -f "$src_path" ]; then
+            printf "  ${RED}%-32s %-10s %-10s %s${NC}\n" "$fname" "❌ MISSING" "$severity" "$impact"
+            ((MISSING_LOCAL++))
+        fi
+    done
+
+    # commit-msg git hook (different install path)
+    if [ -f ".git/hooks/commit-msg" ] && [ -f "$SPECFLOW_SRC/hooks/commit-msg" ]; then
+        if diff -q ".git/hooks/commit-msg" "$SPECFLOW_SRC/hooks/commit-msg" > /dev/null 2>&1; then
+            printf "  ${GREEN}%-32s %-10s %-10s %s${NC}\n" "commit-msg (.git/hooks)" "✅ current" "HIGH" ""
+        else
+            printf "  ${RED}%-32s %-10s %-10s %s${NC}\n" "commit-msg (.git/hooks)" "⚠ OUTDATED" "HIGH" "Commits without #issue accepted — journey tests silently skip"
+            ((OUTDATED++))
+        fi
+    elif [ -f "$SPECFLOW_SRC/hooks/commit-msg" ]; then
+        printf "  ${RED}%-32s %-10s %-10s %s${NC}\n" "commit-msg (.git/hooks)" "❌ MISSING" "HIGH" "Commits without #issue accepted — journey tests silently skip"
+        ((MISSING_LOCAL++))
+    fi
+
+    # settings.json hook wiring
+    if [ -f ".claude/settings.json" ] && [ -f "$SPECFLOW_SRC/hooks/settings.json" ] && command -v jq &> /dev/null; then
+        if diff <(jq -S '.hooks' .claude/settings.json 2>/dev/null) <(jq -S '.hooks' "$SPECFLOW_SRC/hooks/settings.json" 2>/dev/null) > /dev/null 2>&1; then
+            printf "  ${GREEN}%-32s %-10s %-10s %s${NC}\n" "settings.json (hooks)" "✅ in sync" "CRITICAL" ""
+        else
+            printf "  ${YELLOW}%-32s %-10s %-10s %s${NC}\n" "settings.json (hooks)" "⚠ DIFFERS" "CRITICAL" "Hook matchers may be missing — Write/Edit/Bash hooks won't fire"
+            check_warn "settings.json hooks differ from source (may have project-specific additions — review manually)"
+        fi
+    elif [ ! -f ".claude/settings.json" ]; then
+        printf "  ${RED}%-32s %-10s %-10s %s${NC}\n" "settings.json" "❌ MISSING" "CRITICAL" "No hooks wired to Claude — nothing fires on build, commit, write, or edit"
+        ((MISSING_LOCAL++))
+    fi
+
+    echo ""
+
+    # Summary
+    if [ "$OUTDATED" -eq 0 ] && [ "$MISSING_LOCAL" -eq 0 ]; then
+        check_pass "All hook files match Specflow source"
+    else
+        TOTAL_ISSUES=$((OUTDATED + MISSING_LOCAL))
+        check_fail "$TOTAL_ISSUES version issue(s): $OUTDATED outdated, $MISSING_LOCAL missing"
+        echo "" >&2
+        echo -e "  ${BLUE}Fix:${NC} bash $SPECFLOW_SRC/install-hooks.sh . --ci" >&2
+    fi
+fi
+
+echo ""
 echo "========================================"
 echo "Summary"
 echo "========================================"
@@ -597,6 +678,7 @@ if [ $FAIL -eq 0 ]; then
     echo "  10:   Fix patterns & model config (.specflow/)"
     echo "  11:   Contract metadata integrity (test file references)"
     echo "  12:   Graph validator (cross-reference integrity)"
+    echo "  13:   Version check (local vs Specflow source)"
     exit 0
 else
     echo -e "${RED}❌ Specflow setup has issues that need attention.${NC}"
