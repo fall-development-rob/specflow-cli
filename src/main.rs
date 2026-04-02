@@ -1,6 +1,7 @@
 mod commands;
 mod contracts;
 mod hooks;
+mod mcp;
 mod utils;
 
 use clap::{Parser, Subcommand};
@@ -87,6 +88,12 @@ enum Commands {
         #[command(subcommand)]
         hook_command: HookCommands,
     },
+
+    /// MCP server subcommands
+    Mcp {
+        #[command(subcommand)]
+        mcp_command: McpCommands,
+    },
 }
 
 #[derive(Subcommand)]
@@ -97,6 +104,16 @@ enum HookCommands {
     Compliance,
     /// Journey test hook: map issues to journey tests
     Journey,
+}
+
+#[derive(Subcommand)]
+enum McpCommands {
+    /// Start the MCP stdio server
+    Start,
+    /// Register with Claude Code (runs: claude mcp add specflow)
+    Register,
+    /// Unregister from Claude Code (runs: claude mcp remove specflow)
+    Unregister,
 }
 
 fn main() {
@@ -127,6 +144,25 @@ fn main() {
         Commands::Graph { dir } => {
             commands::graph::run(dir.as_deref())
         }
+        Commands::Mcp { mcp_command } => match mcp_command {
+            McpCommands::Start => {
+                mcp::server::run(); // never returns
+            }
+            McpCommands::Register => {
+                if let Err(e) = mcp::server::register() {
+                    eprintln!("Error: {}", e);
+                    std::process::exit(1);
+                }
+                return;
+            }
+            McpCommands::Unregister => {
+                if let Err(e) = mcp::server::unregister() {
+                    eprintln!("Error: {}", e);
+                    std::process::exit(1);
+                }
+                return;
+            }
+        },
         Commands::Hook { hook_command } => match hook_command {
             HookCommands::PostBuild => {
                 match hooks::post_build::run() {
