@@ -425,7 +425,7 @@ All work requires a GitHub issue before writing any code.
 
 **NEVER run `git commit` without a `#<issue-number>` in the message.**
 
-If you don't know the issue number, **ASK** before committing. Multiple issues are fine.
+If you do not know the issue number, **ASK** before committing. Multiple issues are fine.
 
 ```bash
 # single issue
