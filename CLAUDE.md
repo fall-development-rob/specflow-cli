@@ -197,9 +197,8 @@ than inventing a fresh layout.
 
 ### Recommended Adoption Paths
 
-1. **Quick start:** Use [SKILL.md](SKILL.md) when you want the minimal agent-facing setup.
-2. **Project CLAUDE setup:** Use [CLAUDE-MD-TEMPLATE.md](CLAUDE-MD-TEMPLATE.md) when a target repo needs a full, project-specific `CLAUDE.md`.
-3. **Wave execution:** Use [templates/WAVE_EXECUTION_PROTOCOL.md](templates/WAVE_EXECUTION_PROTOCOL.md) when the target repo uses dependency-driven execution across multiple tickets.
+1. **Project CLAUDE setup:** Use [CLAUDE-MD-TEMPLATE.md](CLAUDE-MD-TEMPLATE.md) when a target repo needs a full, project-specific `CLAUDE.md`.
+2. **CLI install:** Run `npm install -g specflow-cli` then `specflow init .` to scaffold contracts and hooks.
 
 ### What To Copy Into A Target Repository
 
@@ -215,7 +214,7 @@ than inventing a fresh layout.
 
 - Keep the contracts listed in `docs/contracts/CONTRACT_INDEX.yml` aligned with the files in `docs/contracts/`.
 - Keep `templates/contracts/` as the canonical default-contract source, and mirror the active defaults into `docs/contracts/` for verifier coverage and documentation.
-- Update `CLAUDE.md`, `SKILL.md`, and the CI templates together when the operating model changes so downstream repos receive a coherent kit.
+- Update `CLAUDE.md` and the CI templates together when the operating model changes so downstream repos receive a coherent kit.
 
 ## About This Repository
 
@@ -254,8 +253,5 @@ specflow mcp register     # connect to Claude Code
 |-----|---------|
 | [README.md](README.md) | Full documentation |
 | [CLAUDE-MD-TEMPLATE.md](CLAUDE-MD-TEMPLATE.md) | Complete CLAUDE.md template |
-| [agents/README.md](agents/README.md) | Agent library setup |
 | [agents/waves-controller.md](agents/waves-controller.md) | Master orchestrator |
-| [templates/WAVE_EXECUTION_PROTOCOL.md](templates/WAVE_EXECUTION_PROTOCOL.md) | Wave execution protocol template |
-| [CONTRACT-SCHEMA.md](CONTRACT-SCHEMA.md) | YAML contract format |
-| [CONTRACT-SCHEMA-EXTENSIONS.md](CONTRACT-SCHEMA-EXTENSIONS.md) | DPAO parallel execution extensions |
+| [docs/CI-INTEGRATION.md](docs/CI-INTEGRATION.md) | CI/CD integration guide |
