@@ -18,7 +18,7 @@ git commit -m "feat: add signup validation"
 3. Run only those Playwright tests
 4. Block on failure
 
-**Install hooks:** `bash Specflow/install-hooks.sh .`
+**Install hooks:** `specflow init .`
 
 ---
 
@@ -45,7 +45,7 @@ From my answers:
 2. Create contract YAML files in docs/contracts/
 3. Create contract tests in src/__tests__/contracts/ (pattern scanning)
 4. Create journey tests in tests/e2e/ (Playwright E2E)
-5. Install journey verification hooks (bash install-hooks.sh .)
+5. Install journey verification hooks (specflow init .)
 6. Show me how to add to CI
 7. Update this project's CLAUDE.md with contract rules and hook config
 
@@ -120,7 +120,7 @@ From my answers:
 2. Create contract YAML files in docs/contracts/
 3. Create contract tests in src/__tests__/contracts/ (pattern scanning)
 4. Create journey tests in tests/e2e/ (Playwright E2E)
-5. Install journey verification hooks (bash install-hooks.sh .)
+5. Install journey verification hooks (specflow init .)
 6. Show me how to add to CI
 7. Update this project's CLAUDE.md with contract rules and hook config
 
@@ -434,7 +434,7 @@ Test: End-to-end registration process
 - examples/test-example.test.ts - Complete test suite
 
 **Tools:**
-- ./verify-setup.sh - Verify infrastructure
+- specflow doctor .   - Verify infrastructure
 - CI-INTEGRATION.md - GitHub Actions, GitLab
 
 ---
@@ -474,7 +474,7 @@ You're doing it right when:
 │ Key Commands:                                           │
 │   npm test -- contracts   Run contract tests           │
 │   npm test -- journeys    Run journey tests            │
-│   ./verify-setup.sh       Check setup                  │
+│   specflow doctor .       Check setup                  │
 │                                                         │
 │ The Gate:                                               │
 │   Violation = Build fails. End of story.               │

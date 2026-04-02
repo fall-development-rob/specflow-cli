@@ -27,12 +27,6 @@ One command. Everything installed. Tests pass at the end.
 npx @colmbyrne/specflow init .
 ```
 
-Or if you have Specflow cloned locally:
-
-```bash
-bash /path/to/Specflow/setup-project.sh .
-```
-
 **What it does (in order):**
 
 | Step | What | Result |
@@ -47,7 +41,7 @@ bash /path/to/Specflow/setup-project.sh .
 | 8 | Creates `.specflow/baseline.json` and `.defer-journal` | State tracking files |
 | 9 | Initializes git + commit-msg hook | Enforces issue numbers in commits |
 | 10 | Installs Claude Code hooks | `.claude/hooks/`, `.claude/settings.json` |
-| 11 | Runs `npm install`, `npm test`, `verify-setup.sh` | Verifies everything works |
+| 11 | Runs `npm install`, `npm test`, `specflow doctor` | Verifies everything works |
 
 **After the script finishes:**
 
@@ -61,7 +55,7 @@ bash /path/to/Specflow/setup-project.sh .
 
 **Best for:** Full control, understanding each piece, or non-standard project layouts.
 
-Every step below is exactly what `setup-project.sh` does. Nothing hidden.
+Every step below is exactly what `specflow init .` does. Nothing hidden.
 
 ### Step 1: Create directory structure
 
@@ -311,19 +305,16 @@ The `commit-msg` hook rejects commits without issue numbers (`#123`).
 ### Step 11: Install Claude Code hooks
 
 ```bash
-bash /path/to/Specflow/install-hooks.sh .
+npx @colmbyrne/specflow init .
 ```
 
 This installs:
 - `.claude/settings.json` — wires PostToolUse hooks
-- `.claude/hooks/post-build-check.sh` — triggers after build/commit
-- `.claude/hooks/run-journey-tests.sh` — finds issues, maps to tests, runs them
-- `.claude/hooks/post-push-ci.sh` — polls GitHub Actions after push
-- `.claude/hooks/session-start.sh` — placeholder for session init
+- `.claude/hooks/` — hook scripts for build, commit, push, and compliance checks
 
 ### Step 12: Fill in CLAUDE.md
 
-If you used Path A (`npx init` or `setup-project.sh`), CLAUDE.md was already created with Specflow rules. Fill in the Project Context:
+If you used Path A (`npx @colmbyrne/specflow init .`), CLAUDE.md was already created with Specflow rules. Fill in the Project Context:
 
 ```markdown
 **Repository:** your-org/your-repo
@@ -349,11 +340,11 @@ npm install
 # Run contract tests
 npm test
 
-# Verify full setup (run from your project root)
-bash /path/to/Specflow/verify-setup.sh
+# Verify full setup
+specflow doctor .
 ```
 
-**Expected:** All tests pass. verify-setup shows 20+ passed, 0 failed.
+**Expected:** All tests pass. Doctor shows all checks passed.
 
 ---
 
@@ -385,11 +376,11 @@ cp -r /path/to/Specflow/ your-project/Specflow/
 git clone https://github.com/Hulupeep/Specflow.git your-project/Specflow
 ```
 
-### Step 2: Run the setup script
+### Step 2: Initialize Specflow
 
 ```bash
 cd your-project
-bash Specflow/setup-project.sh .
+npx @colmbyrne/specflow init .
 ```
 
 ### Step 3: Tell Claude Code to handle the rest
@@ -400,10 +391,10 @@ CLAUDE-MD-TEMPLATE.md in Specflow. Then make my issues compliant and
 execute my backlog in waves.
 ```
 
-**Note:** Claude may miss steps. If tests don't pass or verify-setup shows failures, re-run:
+**Note:** Claude may miss steps. If tests don't pass or doctor shows failures, re-run:
 
 ```bash
-bash Specflow/setup-project.sh .
+npx @colmbyrne/specflow init .
 ```
 
 This fills in anything Claude missed.
@@ -420,8 +411,8 @@ This fills in anything Claude missed.
 | `scripts/agents/*.md` | Agent prompts for waves-controller | setup script |
 | `scripts/specflow-compile.cjs` | Compiles CSV journeys to YAML + Playwright | setup script |
 | `scripts/verify-graph.cjs` | Validates contract cross-references | setup script |
-| `.claude/hooks/*.sh` | Auto-run tests after build/commit/push | install-hooks.sh |
-| `.claude/settings.json` | Wires hooks to Claude Code events | install-hooks.sh |
+| `.claude/hooks/` | Auto-run tests after build/commit/push | specflow init |
+| `.claude/settings.json` | Wires hooks to Claude Code events | specflow init |
 | `.git/hooks/commit-msg` | Rejects commits without issue numbers | setup script |
 | `.specflow/baseline.json` | Regression test baseline | setup script |
 | `.claude/.defer-journal` | Scoped journey test deferrals | setup script |
@@ -436,12 +427,11 @@ This fills in anything Claude missed.
 After any path, run from your project root:
 
 ```bash
-bash /path/to/Specflow/verify-setup.sh
+specflow doctor .
 ```
 
 **Passing setup shows:**
-- 20+ checks passed
-- 0 failed
+- All checks passed
 - Warnings are optional recommendations (CI, specs directory, etc.)
 
 **The litmus test:** If Claude modifies a file in `src/` without mentioning contracts, the `CLAUDE.md` is not being read.
@@ -451,7 +441,7 @@ bash /path/to/Specflow/verify-setup.sh
 ## You're Done When
 
 - Contract tests pass: `npm test`
-- verify-setup.sh: 0 failures
+- `specflow doctor .`: all checks pass
 - CLAUDE.md has project context and contract references
 - Commits require issue numbers (try `git commit -m "test"` — should be rejected)
 - Hooks run after builds (try `npm run build` — should trigger journey check)

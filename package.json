@@ -15,7 +15,6 @@
     "bin/",
     "dist/",
     "native/",
-    "src/",
     "hooks/",
     "templates/",
     "agents/",
