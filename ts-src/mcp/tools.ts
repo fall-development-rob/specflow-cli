@@ -153,6 +153,8 @@ function handleCheckCode(args: any): ToolCallResult {
   const filePath = args.file_path || 'inline.ts';
 
   try {
+    const contracts = loadContracts('docs/contracts');
+    const totalRules = contracts.reduce((sum, c) => sum + c.rules.length, 0);
     const violations = checkSnippet('docs/contracts', code, filePath);
     const result = {
       clean: violations.length === 0,
@@ -164,8 +166,8 @@ function handleCheckCode(args: any): ToolCallResult {
         line: v.line,
         message: v.message,
       })),
-      rules_checked: violations.length, // approximate
-      rules_passed: 0,
+      rules_checked: totalRules,
+      rules_passed: totalRules - violations.length,
     };
     return toolResultText(JSON.stringify(result, null, 2));
   } catch (e: any) {
@@ -357,6 +359,7 @@ function handleDeferJourney(args: any): ToolCallResult {
   const action = args.action;
 
   if (!journeyId) return toolResultError('Missing required parameter: journey_id');
+  if (!/^J-[A-Z0-9-]+$/.test(journeyId)) return toolResultError('Invalid journey ID format');
   if (!reason) return toolResultError('Missing required parameter: reason');
   if (!action) return toolResultError('Missing required parameter: action');
   if (action !== 'defer' && action !== 'undefer') {
@@ -419,5 +422,5 @@ function getAgentList(agentsDir: string, category?: string): any[] {
     }
   }
 
-  return agents.sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name));
+  return agents.sort((a, b) => (a.category || '').localeCompare(b.category || '') || (a.name || '').localeCompare(b.name || ''));
 }

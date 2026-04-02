@@ -29,6 +29,18 @@ export function dirHasFiles(dir: string, extension: string): boolean {
 /**
  * Find the specflow root directory (where templates/contracts/ lives).
  */
+/**
+ * Check if a file has executable permission bits set.
+ */
+export function isExecutable(filePath: string): boolean {
+  try {
+    const stat = fs.statSync(filePath);
+    return (stat.mode & 0o111) !== 0;
+  } catch {
+    return false;
+  }
+}
+
 export function findSpecflowRoot(): string {
   const candidates = [
     process.cwd(),

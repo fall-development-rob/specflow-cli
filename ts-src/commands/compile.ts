@@ -209,8 +209,9 @@ export function run(options: CompileOptions): void {
 
   const journeys = groupByJourney(rows);
 
-  const contractsDir = 'docs/contracts';
-  const testsDir = 'tests/e2e';
+  const targetDir = path.dirname(path.resolve(csvFile));
+  const contractsDir = path.resolve(targetDir, 'docs/contracts');
+  const testsDir = path.resolve(targetDir, 'tests/e2e');
   fs.mkdirSync(contractsDir, { recursive: true });
   fs.mkdirSync(testsDir, { recursive: true });
 

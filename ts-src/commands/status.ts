@@ -6,6 +6,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { loadContracts, scanFiles } from '../lib/native';
+import { isExecutable } from '../lib/fs-utils';
 import { bold, red, green, yellow, cyan } from '../lib/logger';
 
 interface StatusOptions {
@@ -93,11 +94,3 @@ export function run(options: StatusOptions): void {
   }
 }
 
-function isExecutable(filePath: string): boolean {
-  try {
-    const stat = fs.statSync(filePath);
-    return (stat.mode & 0o111) !== 0;
-  } catch {
-    return false;
-  }
-}

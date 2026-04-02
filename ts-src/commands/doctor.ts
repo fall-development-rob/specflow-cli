@@ -5,9 +5,9 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { loadContracts } from '../lib/native';
-import { countFiles } from '../lib/fs-utils';
+import { countFiles, isExecutable } from '../lib/fs-utils';
 import { bold, red, green, yellow, cyan, dim } from '../lib/logger';
 
 type Severity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
@@ -122,10 +122,10 @@ export function run(options: DoctorOptions): void {
   checks.push(checkTestFileReferences(projectRoot, contractsDir));
 
   // 11. gh CLI
-  checks.push(checkCommand('gh', '--version', 'gh CLI', 'LOW'));
+  checks.push(checkCommand('gh', ['--version'], 'gh CLI', 'LOW'));
 
   // 12. Playwright
-  checks.push(checkCommand('npx', 'playwright --version', 'Playwright', 'LOW'));
+  checks.push(checkCommand('npx', ['playwright', '--version'], 'Playwright', 'LOW'));
 
   // 13. Contract graph integrity
   checks.push(checkGraphIntegrity(projectRoot));
@@ -221,9 +221,9 @@ function checkTestFileReferences(projectRoot: string, contractsDir: string): Che
   return { name: 'Test file references', severity: 'MEDIUM', status: 'pass', detail: 'All referenced test files exist' };
 }
 
-function checkCommand(cmd: string, args: string, name: string, severity: Severity): Check {
+function checkCommand(cmd: string, args: string[], name: string, severity: Severity): Check {
   try {
-    execSync(`${cmd} ${args}`, { stdio: 'pipe' });
+    execFileSync(cmd, args, { stdio: 'pipe' });
     return { name, severity, status: 'pass', detail: 'Installed' };
   } catch {
     return { name, severity, status: 'warn', detail: 'Not installed' };
@@ -236,19 +236,10 @@ function checkGraphIntegrity(projectRoot: string): Check {
     return { name: 'Contract graph', severity: 'LOW', status: 'warn', detail: 'verify-graph.cjs not found' };
   }
   try {
-    execSync(`node "${script}" "${path.join(projectRoot, 'docs', 'contracts')}"`, { stdio: 'pipe' });
+    execFileSync('node', [script, path.join(projectRoot, 'docs', 'contracts')], { stdio: 'pipe' });
     return { name: 'Contract graph', severity: 'LOW', status: 'pass', detail: 'Integrity checks passed' };
   } catch {
     return { name: 'Contract graph', severity: 'LOW', status: 'fail', detail: 'Graph integrity errors' };
-  }
-}
-
-function isExecutable(filePath: string): boolean {
-  try {
-    const stat = fs.statSync(filePath);
-    return (stat.mode & 0o111) !== 0;
-  } catch {
-    return false;
   }
 }
 

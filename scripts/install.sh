@@ -70,31 +70,18 @@ fi
 
 success "Node.js $NODE_VERSION"
 
-# ─── Check Rust / Cargo ──────────────────────────────────────────────────────
-info "Checking Rust toolchain..."
-
-if ! command -v cargo &>/dev/null; then
-  fail "Rust/Cargo is not installed.
-  Install it from: https://rustup.rs
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh"
-fi
-
-CARGO_VERSION=$(cargo --version | awk '{print $2}')
-success "Cargo $CARGO_VERSION"
-
 # ─── Install Specflow ────────────────────────────────────────────────────────
-info "Installing Specflow CLI via cargo..."
-echo -e "${DIM}  cargo install --git https://github.com/fall-development-rob/Specflow.git specflow${RESET}"
+info "Installing Specflow CLI via npm..."
+echo -e "${DIM}  npm install -g @colmbyrne/specflow${RESET}"
 
-cargo install --git https://github.com/fall-development-rob/Specflow.git specflow
+npm install -g @colmbyrne/specflow
 
 # ─── Verify Installation ─────────────────────────────────────────────────────
 info "Verifying installation..."
 
 if ! command -v specflow &>/dev/null; then
   fail "specflow binary not found in PATH after install.
-  Ensure ~/.cargo/bin is in your PATH:
-    export PATH=\"\$HOME/.cargo/bin:\$PATH\""
+  Ensure your npm global bin directory is in your PATH."
 fi
 
 SPECFLOW_VERSION=$(specflow --version 2>/dev/null || echo "unknown")

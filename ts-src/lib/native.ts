@@ -85,10 +85,11 @@ function getYaml() {
 function yamlPatternToRegex(patternStr: string): RegExp {
   const trimmed = patternStr.trim();
   const match = trimmed.match(/^\/(.+)\/([gimsuy]*)$/s);
-  if (!match) {
-    throw new Error(`Invalid regex pattern format: ${trimmed}`);
+  if (match) {
+    return new RegExp(match[1], match[2]);
   }
-  return new RegExp(match[1], match[2]);
+  // Fallback: treat as bare regex string
+  return new RegExp(trimmed);
 }
 
 interface JsCompiledPattern {

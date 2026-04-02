@@ -26,19 +26,23 @@ export function run(options: EnforceOptions): void {
   const result = scanFiles(contractsDir, projectRoot);
 
   // Filter by contract name if specified
+  let output = result;
   if (options.contract) {
-    result.violations = result.violations.filter(
-      v => v.contractId === options.contract
-    );
+    output = {
+      ...result,
+      violations: result.violations.filter(
+        v => v.contractId === options.contract
+      ),
+    };
   }
 
   if (options.json) {
-    printJson(result);
+    printJson(output);
   } else {
-    printHuman(result, projectRoot);
+    printHuman(output, projectRoot);
   }
 
-  if (result.violations.length > 0) {
+  if (output.violations.length > 0) {
     process.exit(1);
   }
 }

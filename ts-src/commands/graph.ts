@@ -5,7 +5,7 @@
 
 import * as path from 'path';
 import * as fs from 'fs';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 
 interface GraphOptions {
   dir?: string;
@@ -36,7 +36,7 @@ export function run(options: GraphOptions): void {
   }
 
   try {
-    execSync(`node "${scriptPath}" "${dir}"`, { stdio: 'inherit' });
+    execFileSync('node', [scriptPath, dir], { stdio: 'inherit' });
   } catch (e: any) {
     process.exit(e.status || 1);
   }

@@ -6,7 +6,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 
 function run(): void {
   // Consume stdin (not used directly, but must be read)
@@ -26,7 +26,7 @@ function run(): void {
 
     // Check gh CLI
     try {
-      execSync('gh --version', { stdio: 'pipe' });
+      execFileSync('gh', ['--version'], { stdio: 'pipe' });
     } catch {
       process.stderr.write('Warning: gh CLI not installed. Cannot fetch journey contracts from issues.\n');
       process.exit(2);
@@ -35,7 +35,7 @@ function run(): void {
 
     // Check gh auth
     try {
-      execSync('gh auth status', { stdio: 'pipe' });
+      execFileSync('gh', ['auth', 'status'], { stdio: 'pipe' });
     } catch {
       process.stderr.write('Warning: gh CLI not authenticated.\n');
       process.exit(2);
@@ -87,8 +87,9 @@ function run(): void {
     process.stderr.write(`\nRunning journey tests: ${unique.join(' ')}\n`);
 
     const testCmd = detectTestCommand(projectRoot);
+    const [testBin, ...testArgs] = testCmd.split(' ');
     try {
-      execSync(`${testCmd} ${unique.join(' ')}`, { stdio: 'inherit', cwd: projectRoot });
+      execFileSync(testBin, [...testArgs, ...unique], { stdio: 'inherit', cwd: projectRoot });
       process.stderr.write('\nJourney tests PASSED\n');
       process.exit(0);
     } catch {
@@ -100,8 +101,8 @@ function run(): void {
 
 function getRecentIssues(dir: string, count: number): string[] {
   try {
-    const output = execSync(
-      `git log -${count} --pretty=format:"%s %b"`,
+    const output = execFileSync(
+      'git', ['log', `-${count}`, '--pretty=format:%s %b'],
       { cwd: dir, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }
     );
     const re = /#(\d+)/g;
@@ -118,8 +119,8 @@ function getRecentIssues(dir: string, count: number): string[] {
 
 function getJourneyForIssue(issue: string): string[] {
   try {
-    const output = execSync(
-      `gh issue view ${issue} --json body,comments`,
+    const output = execFileSync(
+      'gh', ['issue', 'view', issue, '--json', 'body,comments'],
       { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }
     );
     const re = /J-[A-Z0-9]+(-[A-Z0-9]+)*/g;

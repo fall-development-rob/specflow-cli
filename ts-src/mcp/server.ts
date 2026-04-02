@@ -111,10 +111,10 @@ function handleToolsCall(req: JsonRpcRequest): JsonRpcResponse {
  * Register the MCP server with Claude Code.
  */
 export function register(): void {
-  const { execSync } = require('child_process');
+  const { execFileSync } = require('child_process');
   process.stderr.write('Registering specflow MCP server with Claude Code...\n');
   try {
-    execSync('claude mcp add specflow -- specflow mcp start', { stdio: 'inherit' });
+    execFileSync('claude', ['mcp', 'add', 'specflow', '--', 'specflow', 'mcp', 'start'], { stdio: 'inherit' });
     process.stderr.write('Registered successfully. Use "claude" to verify.\n');
   } catch {
     process.stderr.write('claude mcp add failed\n');
@@ -126,10 +126,10 @@ export function register(): void {
  * Unregister the MCP server from Claude Code.
  */
 export function unregister(): void {
-  const { execSync } = require('child_process');
+  const { execFileSync } = require('child_process');
   process.stderr.write('Unregistering specflow MCP server from Claude Code...\n');
   try {
-    execSync('claude mcp remove specflow', { stdio: 'inherit' });
+    execFileSync('claude', ['mcp', 'remove', 'specflow'], { stdio: 'inherit' });
     process.stderr.write('Unregistered successfully.\n');
   } catch {
     process.stderr.write('claude mcp remove failed\n');

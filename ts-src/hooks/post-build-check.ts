@@ -62,22 +62,13 @@ function run(): void {
 
     process.stderr.write('Build/commit detected. Running journey tests...\n');
 
-    const projectDir = process.env.CLAUDE_PROJECT_DIR || '.';
-    const { existsSync } = require('fs');
-    const { execSync } = require('child_process');
-    const path = require('path');
+    const { execFileSync } = require('child_process');
 
-    const journeyScript = path.join(projectDir, '.claude', 'hooks', 'run-journey-tests.sh');
-    if (existsSync(journeyScript)) {
-      try {
-        execSync(`bash "${journeyScript}"`, { stdio: 'inherit' });
-        process.exit(0);
-      } catch {
-        process.exit(2);
-      }
-    } else {
-      process.stderr.write('Warning: run-journey-tests.sh not found -- skipping journey tests\n');
+    try {
+      execFileSync('specflow', ['hook', 'journey'], { stdio: 'inherit' });
       process.exit(0);
+    } catch {
+      process.exit(2);
     }
   });
 }

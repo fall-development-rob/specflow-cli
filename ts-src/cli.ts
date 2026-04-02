@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * Specflow CLI entry point.
  * Routes commands to their handlers.
@@ -84,7 +83,7 @@ async function main() {
 
     case 'doctor': {
       const { run } = require('./commands/doctor');
-      run({
+      await run({
         dir: getPositional(),
         json: hasFlag('--json'),
         fix: hasFlag('--fix'),
@@ -94,7 +93,7 @@ async function main() {
 
     case 'enforce': {
       const { run } = require('./commands/enforce');
-      run({
+      await run({
         dir: getPositional(),
         json: hasFlag('--json'),
         contract: getFlagValue('--contract'),
@@ -104,7 +103,7 @@ async function main() {
 
     case 'update': {
       const { run } = require('./commands/update');
-      run({
+      await run({
         dir: getPositional(),
         ci: hasFlag('--ci'),
       });
@@ -113,7 +112,7 @@ async function main() {
 
     case 'status': {
       const { run } = require('./commands/status');
-      run({
+      await run({
         dir: getPositional(),
         json: hasFlag('--json'),
       });
@@ -122,19 +121,19 @@ async function main() {
 
     case 'compile': {
       const { run } = require('./commands/compile');
-      run({ args: restArgs });
+      await run({ args: restArgs });
       break;
     }
 
     case 'audit': {
       const { run } = require('./commands/audit');
-      run({ issue: restArgs[0] || '' });
+      await run({ issue: restArgs[0] || '' });
       break;
     }
 
     case 'graph': {
       const { run } = require('./commands/graph');
-      run({ dir: getPositional() });
+      await run({ dir: getPositional() });
       break;
     }
 
