@@ -56,9 +56,9 @@ let nativeModule: any = null;
 try {
   // Look for the native .node binary in several locations
   const candidates = [
-    path.join(__dirname, '..', '..', 'native', 'specflow-native.node'),
+    path.join(__dirname, '..', '..', 'rust', 'specflow-native.node'),
     path.join(__dirname, '..', '..', 'specflow-native.node'),
-    path.join(__dirname, '..', 'native', 'specflow-native.node'),
+    path.join(__dirname, '..', 'rust', 'specflow-native.node'),
   ];
   for (const candidate of candidates) {
     if (fs.existsSync(candidate)) {

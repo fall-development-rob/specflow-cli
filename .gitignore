@@ -27,7 +27,7 @@ node_modules/
 
 # Build artifacts
 /dist
-/native/target
+/rust/target
 *.node
 
 # Dev tooling (ruflo, claude-flow)
