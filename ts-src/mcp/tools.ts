@@ -4,9 +4,16 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { ToolDefinition, ToolCallResult, toolResultText, toolResultError } from './protocol';
 import { loadContracts, scanFiles, checkSnippet, validateContract } from '../lib/native';
+
+/** Ensure a resolved path stays within the project root. */
+function containPath(userPath: string, base: string = process.cwd()): string | null {
+  const resolved = path.resolve(base, userPath);
+  if (!resolved.startsWith(base + path.sep) && resolved !== base) return null;
+  return resolved;
+}
 
 export function toolDefinitions(): ToolDefinition[] {
   return [
@@ -170,8 +177,11 @@ function handleGetViolations(args: any): ToolCallResult {
   const scanPath = args.path;
   if (!scanPath) return toolResultError('Missing required parameter: path');
 
+  const safePath = containPath(scanPath);
+  if (!safePath) return toolResultError('Path must be within the project directory');
+
   try {
-    const result = scanFiles('docs/contracts', path.resolve(scanPath));
+    const result = scanFiles('docs/contracts', safePath);
     const violationList = result.violations.map(v => ({
       contract: v.contractId,
       rule: v.ruleId,
@@ -208,11 +218,13 @@ function handleValidateContract(args: any): ToolCallResult {
 
 function handleAuditIssue(args: any): ToolCallResult {
   const issueNumber = args.issue_number;
-  if (!issueNumber) return toolResultError('Missing required parameter: issue_number');
+  if (!issueNumber || typeof issueNumber !== 'number' || !Number.isInteger(issueNumber)) {
+    return toolResultError('Missing or invalid parameter: issue_number (must be an integer)');
+  }
 
   try {
-    const output = execSync(
-      `gh issue view ${issueNumber} --json title,body,comments`,
+    const output = execFileSync(
+      'gh', ['issue', 'view', String(issueNumber), '--json', 'title,body,comments'],
       { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }
     );
 
@@ -266,7 +278,7 @@ function handleCompileJourneys(args: any): ToolCallResult {
   }
 
   try {
-    const output = execSync(`node "${script}" "${csvFile}"`, { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] });
+    const output = execFileSync('node', [script, csvFile], { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] });
     try {
       return toolResultText(JSON.stringify(JSON.parse(output), null, 2));
     } catch {
@@ -285,7 +297,7 @@ function handleVerifyGraph(args: any): ToolCallResult {
   }
 
   try {
-    const output = execSync(`node "${script}" "${dir}"`, { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] });
+    const output = execFileSync('node', [script, dir], { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] });
     return toolResultText(JSON.stringify({ passed: true, raw_output: output.trim() }, null, 2));
   } catch (e: any) {
     return toolResultText(JSON.stringify({ passed: false, raw_output: e.stdout || e.message }, null, 2));
@@ -309,9 +321,11 @@ function handleListAgents(args: any): ToolCallResult {
 function handleGetAgent(args: any): ToolCallResult {
   const name = args.name;
   if (!name) return toolResultError('Missing required parameter: name');
+  if (/[\/\\]/.test(name)) return toolResultError('Invalid agent name');
 
-  const agentsDir = 'agents';
+  const agentsDir = path.resolve('agents');
   const filePath = path.join(agentsDir, `${name}.md`);
+  if (!filePath.startsWith(agentsDir + path.sep)) return toolResultError('Invalid agent name');
 
   if (!fs.existsSync(filePath)) {
     return toolResultError(`Agent not found: ${name}`);

@@ -80,8 +80,9 @@ function run(): void {
       process.stderr.write('    CSV -> compile:journeys -> YAML contracts + stubs -> fill in stubs\n\n');
 
       process.exit(2);
-    } catch {
-      process.exit(0);
+    } catch (err) {
+      process.stderr.write(`[specflow] Compliance check error: ${err}\n`);
+      process.exit(2);
     }
   });
 }

@@ -9,41 +9,40 @@ This file provides guidance to Claude Code when working with the Specflow reposi
 **Repository:** Hulupeep/Specflow
 **Project Board:** GitHub Issues
 **Board CLI:** gh (must be installed and authenticated)
-**Tech Stack:** Rust (CLI), Node.js/JavaScript (tests, npm package), Jest
+**Tech Stack:** TypeScript (CLI, hooks, MCP server), Rust/NAPI-RS (contract engine), Jest (tests)
 **Primary Focus:** Specflow methodology framework — contracts, agents, hooks, templates
 
 ### Repository Structure
 
 ```
-src/                    # Rust CLI source (specflow binary)
-  main.rs               # CLI entry point (clap)
-  commands/             # init, doctor, enforce, update, status, compile, audit, graph
-  contracts/            # loader, scanner, reporter
-  hooks/                # post_build, compliance, journey_tests
+ts-src/                 # TypeScript CLI source
+  cli.ts                # Entry point, command routing
+  commands/             # init, doctor, enforce, update, status, compile, audit, graph, agent
+  hooks/                # post-build-check, check-compliance, run-journey-tests
   mcp/                  # MCP stdio server (protocol, server, tools)
-  agents/               # Agent registry (frontmatter parser)
-  utils/                # fs, git helpers
+  lib/                  # native bindings, reporter, logger, fs-utils
+rust/                   # Rust NAPI-RS native contract engine
+  src/lib.rs            # YAML parsing, regex compilation, file scanning
+bin/specflow.js         # npm package entry point → dist/cli.js
+dist/                   # Compiled TypeScript output (gitignored)
 agents/                 # 26 agent prompt templates (markdown + YAML frontmatter)
-docs/contracts/         # Active project contracts (YAML)
+docs/                   # Guides, reference, architecture (ADRs/PRDs/DDDs), contracts
 templates/contracts/    # Default contract templates (YAML)
 templates/ci/           # GitHub Actions workflow templates
 tests/                  # Jest test suites (contracts, hooks, schema, compile)
-demo/                   # Interactive demo showing contracts > unit tests
 scripts/                # Install script, Node.js compile/verify helpers
-bin/                    # Node.js CLI wrapper (npm package entry point)
 ```
 
-### Rust CLI Binary
-
-The primary CLI is a Rust binary built with `cargo build --release`. Output: `target/release/specflow`.
+### Building
 
 ```bash
-cargo build --release              # build
-cargo test                         # run Rust tests
-./target/release/specflow --version  # verify
+npx tsc                            # compile TypeScript → dist/
+cd rust && cargo build --release   # compile Rust native module (optional)
+npm test                           # run all 678 tests
+node dist/cli.js doctor            # verify setup
 ```
 
-After install (`cargo install` or `scripts/install.sh`), the binary is available as `specflow` in PATH.
+After `npm install -g @colmbyrne/specflow`, the CLI is available as `specflow` in PATH.
 
 ---
 
@@ -72,7 +71,7 @@ git commit -m "feat: add agent validation"
 Check `docs/contracts/` before modifying protected files.
 
 ```bash
-specflow enforce .       # Rust CLI enforcement
+specflow enforce .       # Contract enforcement
 npm test -- contracts    # Jest contract tests
 ```
 
@@ -86,7 +85,7 @@ npm test -- contracts    # Contract tests only
 npm test -- hooks        # Hook tests only
 npm test -- schema       # Schema validation only
 npm test -- compile      # Compiler tests only
-cargo test               # Rust unit tests
+npx tsc                  # Compile TypeScript
 ```
 
 Work is NOT complete if tests fail.
@@ -221,7 +220,7 @@ than inventing a fresh layout.
 ## About This Repository
 
 This is the **Specflow methodology repository** containing:
-- Rust CLI (`specflow`) with 11 commands and MCP server
+- TypeScript CLI (`specflow`) with 11 commands, Rust native contract engine, and MCP server
 - 26 agents with YAML frontmatter for automated execution
 - YAML contract templates and enforcement
 - Jest test suites (650+ tests)
