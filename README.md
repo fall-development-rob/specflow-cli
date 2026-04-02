@@ -14,22 +14,17 @@ specflow enforce .     # run contract enforcement
 
 ## Install
 
-### From source (Rust)
+### Via npm
 
 ```bash
-cargo install --git https://github.com/Hulupeep/Specflow.git specflow
+npm install -g specflow-cli
+specflow init .
 ```
 
 ### Via install script
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/Hulupeep/Specflow/main/scripts/install.sh | bash
-```
-
-### Via npm (Node.js wrapper)
-
-```bash
-npx @colmbyrne/specflow init .
+curl -sSL https://raw.githubusercontent.com/fall-development-rob/specflow-cli/main/scripts/install.sh | bash
 ```
 
 ---
@@ -144,16 +139,6 @@ Default contract templates ship in `templates/contracts/`:
 
 ---
 
-## Demo
-
-```bash
-cd demo && npm install && npm run demo
-```
-
-Watch contracts catch a violation that unit tests miss. See [demo/QUICKSTART.md](demo/QUICKSTART.md) for the full walkthrough.
-
----
-
 ## FAQ
 
 **Isn't this just more testing?** No. Tests verify behaviour. Contracts verify architecture. "No localStorage in service workers" survives any refactor.
@@ -170,7 +155,7 @@ Watch contracts catch a violation that unit tests miss. See [demo/QUICKSTART.md]
 |---|---|
 | [Getting Started](docs/getting-started.md) | Manual paths, updating, SKILL.md |
 | [Agent Library](agents/README.md) | 26 agents for wave execution |
-| [Contract Schema](CONTRACT-SCHEMA.md) | YAML format for contracts |
+| [Contract Schema](docs/reference/CONTRACT-SCHEMA.md) | YAML format for contracts |
 | [CI Integration](CI-INTEGRATION.md) | GitHub Actions setup |
-| [npm](https://www.npmjs.com/package/@colmbyrne/specflow) | `@colmbyrne/specflow` |
-| [Issues](https://github.com/Hulupeep/Specflow/issues) | Bugs and ideas |
+| [npm](https://www.npmjs.com/package/specflow-cli) | `specflow-cli` |
+| [Issues](https://github.com/fall-development-rob/specflow-cli/issues) | Bugs and ideas |

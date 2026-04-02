@@ -1,11 +1,11 @@
 {
-  "name": "@colmbyrne/specflow",
+  "name": "specflow-cli",
   "version": "0.1.11",
   "description": "Specs that enforce themselves. Contract tests, journey hooks, and agent orchestration for LLM-driven development.",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Hulupeep/Specflow.git"
+    "url": "https://github.com/fall-development-rob/specflow-cli.git"
   },
   "main": "dist/cli.js",
   "bin": {
@@ -31,10 +31,10 @@
   "scripts": {
     "build": "tsc",
     "build:rust": "cargo build --release",
-    "build:native": "cd native && napi build --release",
+    "build:native": "cd rust && napi build --release",
     "prebuild": "rm -rf dist",
     "prepublishOnly": "npm run build",
-    "postinstall": "echo '' && echo '  @colmbyrne/specflow installed' && echo '  Run: npx @colmbyrne/specflow init .' && echo ''",
+    "postinstall": "echo '' && echo '  specflow-cli installed' && echo '  Run: npx specflow-cli init .' && echo ''",
     "test": "jest --no-coverage",
     "test:contracts": "jest tests/contracts/ --no-coverage",
     "test:hooks": "jest tests/hooks/ --no-coverage",

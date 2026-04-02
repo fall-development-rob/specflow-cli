@@ -6,7 +6,7 @@ This file provides guidance to Claude Code when working with the Specflow reposi
 
 ## Project Context
 
-**Repository:** Hulupeep/Specflow
+**Repository:** fall-development-rob/specflow-cli
 **Project Board:** GitHub Issues
 **Board CLI:** gh (must be installed and authenticated)
 **Tech Stack:** TypeScript (CLI, hooks, MCP server), Rust/NAPI-RS (contract engine), Jest (tests)
