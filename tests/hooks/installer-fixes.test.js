@@ -10,8 +10,8 @@ const fs = require('fs');
 const os = require('os');
 const { spawnSync } = require('child_process');
 
-const INSTALLER_PATH = path.join(__dirname, '..', '..', 'install-hooks.sh');
-const VERIFY_PATH = path.join(__dirname, '..', '..', 'verify-setup.sh');
+const INSTALLER_PATH = path.join(__dirname, '..', '..', 'scripts', 'legacy', 'install-hooks.sh');
+const VERIFY_PATH = path.join(__dirname, '..', '..', 'scripts', 'legacy', 'verify-setup.sh');
 const SETTINGS_PATH = path.join(__dirname, '..', '..', 'hooks', 'settings.json');
 
 describe('hooks/settings.json (Bug 2 fix)', () => {

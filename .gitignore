@@ -26,3 +26,14 @@ gemini_version/node_modules
 .env.local
 *.env.local
 samples/mindsplit/node_modules
+.swarm/*
+
+.claude/*
+
+.claude-flow/*
+.mcp.json
+.hive-mind/*
+
+# Dev tooling
+ruflo/
+

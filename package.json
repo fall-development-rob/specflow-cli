@@ -16,15 +16,10 @@
     "templates/",
     "agents/",
     "scripts/",
-    "setup-project.sh",
-    "install-hooks.sh",
-    "verify-setup.sh",
+    "docs/",
     "CLAUDE.md",
     "CLAUDE-MD-TEMPLATE.md",
-    "CONTRACT-SCHEMA.md",
-    "CONTRACT-SCHEMA-EXTENSIONS.md",
-    "SKILL.md",
-    "LLM-MASTER-PROMPT.md"
+    "SKILL.md"
   ],
   "scripts": {
     "postinstall": "echo '' && echo '╔═══════════════════════════════════════════════════════╗' && echo '║  @colmbyrne/specflow installed                       ║' && echo '╠═══════════════════════════════════════════════════════╣' && echo '║                                                       ║' && echo '║  Run in EACH project you want to enforce:             ║' && echo '║                                                       ║' && echo '║    npx @colmbyrne/specflow init .                     ║' && echo '║                                                       ║' && echo '║  This creates hooks, contracts, agents, tests, and    ║' && echo '║  CLAUDE.md (or appends rules to your existing one).   ║' && echo '║  Then fill in the Project Context in CLAUDE.md.       ║' && echo '║                                                       ║' && echo '╚═══════════════════════════════════════════════════════╝' && echo ''",
