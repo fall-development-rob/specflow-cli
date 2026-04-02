@@ -144,31 +144,31 @@ This shows contracts are enforceable guards, not just comments.
 ### Use in Your Project
 
 ```bash
-# 1. Document one critical requirement
-cat > docs/current-behavior.md <<EOF
-Our auth currently:
-- Sessions stored in Redis
-- 24-hour expiry
-- Never use localStorage (breaks in service workers)
-EOF
+# 1. Install Specflow CLI
+cargo install --git https://github.com/Hulupeep/Specflow.git specflow
 
-# 2. Have LLM convert to contract
-# Give Claude/GPT: "Read current-behavior.md and create a Specflow contract"
+# 2. Initialize in your project
+specflow init .
 
-# 3. Run contract tests
+# 3. Check setup
+specflow doctor .
+
+# 4. Run contract enforcement
+specflow enforce .
+
+# 5. Run contract tests
 npm test -- contracts
 
-# 4. Add to CI
-# .github/workflows/ci.yml:
-# - run: npm test -- contracts
+# 6. Add to CI
+specflow update . --ci
 ```
 
 ### Learn More
 
 - **[Main Specflow Docs](../README.md)** - Full system overview
-- **[Spec Format Guide](../SPEC-FORMAT.md)** - How to write specs
 - **[Contract Schema](../CONTRACT-SCHEMA.md)** - YAML format details
-- **[LLM Workflow](../LLM-MASTER-PROMPT.md)** - Guide for LLMs
+- **[Agent Library](../agents/README.md)** - 26 agents for orchestration
+- **[Getting Started](../docs/getting-started.md)** - Detailed setup guide
 
 ---
 

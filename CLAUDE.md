@@ -9,8 +9,41 @@ This file provides guidance to Claude Code when working with the Specflow reposi
 **Repository:** Hulupeep/Specflow
 **Project Board:** GitHub Issues
 **Board CLI:** gh (must be installed and authenticated)
-**Tech Stack:** Node.js, JavaScript, Jest
+**Tech Stack:** Rust (CLI), Node.js/JavaScript (tests, npm package), Jest
 **Primary Focus:** Specflow methodology framework — contracts, agents, hooks, templates
+
+### Repository Structure
+
+```
+src/                    # Rust CLI source (specflow binary)
+  main.rs               # CLI entry point (clap)
+  commands/             # init, doctor, enforce, update, status, compile, audit, graph
+  contracts/            # loader, scanner, reporter
+  hooks/                # post_build, compliance, journey_tests
+  mcp/                  # MCP stdio server (protocol, server, tools)
+  agents/               # Agent registry (frontmatter parser)
+  utils/                # fs, git helpers
+agents/                 # 26 agent prompt templates (markdown + YAML frontmatter)
+docs/contracts/         # Active project contracts (YAML)
+templates/contracts/    # Default contract templates (YAML)
+templates/ci/           # GitHub Actions workflow templates
+tests/                  # Jest test suites (contracts, hooks, schema, compile)
+demo/                   # Interactive demo showing contracts > unit tests
+scripts/                # Install script, Node.js compile/verify helpers
+bin/                    # Node.js CLI wrapper (npm package entry point)
+```
+
+### Rust CLI Binary
+
+The primary CLI is a Rust binary built with `cargo build --release`. Output: `target/release/specflow`.
+
+```bash
+cargo build --release              # build
+cargo test                         # run Rust tests
+./target/release/specflow --version  # verify
+```
+
+After install (`cargo install` or `scripts/install.sh`), the binary is available as `specflow` in PATH.
 
 ---
 
@@ -39,7 +72,8 @@ git commit -m "feat: add agent validation"
 Check `docs/contracts/` before modifying protected files.
 
 ```bash
-npm test -- contracts    # Must pass
+specflow enforce .       # Rust CLI enforcement
+npm test -- contracts    # Jest contract tests
 ```
 
 Violation = build fails = PR blocked.
@@ -47,11 +81,12 @@ Violation = build fails = PR blocked.
 ### Rule 4: Tests Must Pass Before Closing
 
 ```bash
-npm test                 # All tests (558+)
+npm test                 # All Jest tests (650+)
 npm test -- contracts    # Contract tests only
 npm test -- hooks        # Hook tests only
 npm test -- schema       # Schema validation only
 npm test -- compile      # Compiler tests only
+cargo test               # Rust unit tests
 ```
 
 Work is NOT complete if tests fail.
@@ -100,7 +135,7 @@ override_contract: <contract_id>
 
 ---
 
-## 🚨 NEW SESSION ONBOARDING (For Other Projects)
+## NEW SESSION ONBOARDING (For Other Projects)
 
 **If you are using Specflow in a DIFFERENT project and don't know the project context, ASK FIRST:**
 
@@ -131,17 +166,17 @@ Before doing any work, you MUST know:
 If you don't know the issue number, **ASK** before committing. Do not guess, do not omit it.
 
 ```bash
-# ✅ GOOD - hooks find #375 and run its journey tests
+# GOOD - hooks find #375 and run its journey tests
 git commit -m "feat: add signup validation (#375)"
 
-# ✅ GOOD - bare number works too
+# GOOD - bare number works too
 git commit -m "feat: add signup validation #375"
 
-# ❌ BAD - hooks find nothing, no tests run, no enforcement
+# BAD - hooks find nothing, no tests run, no enforcement
 git commit -m "feat: add signup validation"
 ```
 
-After `pnpm build` or `git commit`, hooks automatically:
+After `specflow hook post-build` or `git commit`, hooks automatically:
 1. Extract issue numbers from recent commits
 2. Fetch each issue for journey contract (`J-SIGNUP-FLOW`)
 3. Run only relevant Playwright tests
@@ -149,7 +184,7 @@ After `pnpm build` or `git commit`, hooks automatically:
 
 **Without an issue number, journey tests are silently skipped — the commit succeeds but nothing is verified.**
 
-**Install hooks:** `bash Specflow/install-hooks.sh .`
+**Install hooks:** `specflow update .` or `bash scripts/install.sh`
 
 **DO NOT assume or guess.** Different projects have different boards, contracts, and conventions.
 
@@ -173,7 +208,7 @@ than inventing a fresh layout.
 |------|----------|---------|
 | `agents/` | `scripts/agents/` | Subagent library for orchestration and execution |
 | `templates/contracts/*.yml` | `docs/contracts/` | Reusable default contracts |
-| `hooks/` via `install-hooks.sh` | `.claude/hooks/` and `.git/hooks/` | Local enforcement and journey verification |
+| `hooks/` via `specflow update` | `.claude/hooks/` and `.git/hooks/` | Local enforcement and journey verification |
 | `templates/ci/*.yml` | `.github/workflows/` | PR and post-merge contract enforcement |
 | `CLAUDE-MD-TEMPLATE.md` | `CLAUDE.md` | Project-specific operating instructions |
 
@@ -186,50 +221,33 @@ than inventing a fresh layout.
 ## About This Repository
 
 This is the **Specflow methodology repository** containing:
-- Documentation on specs and contracts
-- 18 subagents for automated execution
-- Templates and examples
+- Rust CLI (`specflow`) with 11 commands and MCP server
+- 26 agents with YAML frontmatter for automated execution
+- YAML contract templates and enforcement
+- Jest test suites (650+ tests)
 - Demo proving contracts catch what unit tests miss
 
-### Quick Start with Subagents
+### Quick Start with CLI
 
 ```bash
-# 1. Copy agents and protocol to your project
-cp -r Specflow/agents/ your-project/scripts/agents/
-cp Specflow/templates/WAVE_EXECUTION_PROTOCOL.md your-project/docs/
-
-# 2. Tell Claude Code
-"Execute waves"
+specflow init .           # scaffold in current project
+specflow doctor .         # verify setup
+specflow enforce .        # run contracts
+specflow agent list       # see available agents
+specflow mcp register     # connect to Claude Code
 ```
-
-### The Orchestrator
-
-The `waves-controller` agent is the master orchestrator. It:
-- Fetches all open issues
-- Builds dependency graph
-- Calculates parallel waves
-- Spawns all other agents
-- Handles quality gates
-- Closes completed issues
-
-**One command does everything:** `"Execute waves"`
 
 ### Quick Commands
 
-| Goal | Say this |
-|------|----------|
-| Execute entire backlog | "Execute waves" |
-| Execute specific issues | "Execute issues #50, #51, #52" |
-| Execute by milestone | "Execute waves for milestone v1.0" |
-| Audit test quality | "Run e2e-test-auditor" |
-| Check compliance | "Run board-auditor" |
-
-### Demo
-
-```bash
-cd demo && npm install
-npm run demo              # See contracts in action
-```
+| Goal | Command |
+|------|---------|
+| Health check | `specflow doctor .` |
+| Run contracts | `specflow enforce .` |
+| Compliance dashboard | `specflow status .` |
+| Audit an issue | `specflow audit 500` |
+| List agents | `specflow agent list` |
+| Search agents | `specflow agent search testing` |
+| Register MCP | `specflow mcp register` |
 
 ### Key Docs
 
@@ -237,9 +255,8 @@ npm run demo              # See contracts in action
 |-----|---------|
 | [README.md](README.md) | Full documentation |
 | [CLAUDE-MD-TEMPLATE.md](CLAUDE-MD-TEMPLATE.md) | Complete CLAUDE.md template |
-| [agents/README.md](agents/README.md) | Subagent library setup |
+| [agents/README.md](agents/README.md) | Agent library setup |
 | [agents/waves-controller.md](agents/waves-controller.md) | Master orchestrator |
 | [templates/WAVE_EXECUTION_PROTOCOL.md](templates/WAVE_EXECUTION_PROTOCOL.md) | Wave execution protocol template |
-| [LLM-MASTER-PROMPT.md](LLM-MASTER-PROMPT.md) | How to generate contracts |
 | [CONTRACT-SCHEMA.md](CONTRACT-SCHEMA.md) | YAML contract format |
-| [CONTRACT-SCHEMA-EXTENSIONS.md](CONTRACT-SCHEMA-EXTENSIONS.md) | **NEW: DPAO parallel execution extensions** |
+| [CONTRACT-SCHEMA-EXTENSIONS.md](CONTRACT-SCHEMA-EXTENSIONS.md) | DPAO parallel execution extensions |
