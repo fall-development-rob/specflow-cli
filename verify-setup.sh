@@ -210,32 +210,94 @@ echo "--------------------------"
 if [ -f "CLAUDE.md" ]; then
     check_pass "CLAUDE.md exists"
 
-    # Check for Specflow Rules section (the minimum required)
-    if grep -q "Specflow Rules" CLAUDE.md 2>/dev/null; then
-        check_pass "CLAUDE.md has Specflow Rules section"
+    echo ""
+    echo "  CRITICAL (system breaks without these):"
+
+    # Project Context — agents use gh against this repo
+    if grep -q '^\*\*Repository:\*\*' CLAUDE.md 2>/dev/null && ! grep -q '\[org/repo-name\]' CLAUDE.md 2>/dev/null; then
+        check_pass "Repository filled in"
+    elif grep -q '\[org/repo-name\]' CLAUDE.md 2>/dev/null; then
+        check_fail "Repository is placeholder [org/repo-name] — agents can't find your issues"
     else
-        check_fail "CLAUDE.md is missing Specflow Rules — Claude won't enforce contracts or commit format"
+        check_fail "Repository missing — agents can't run gh commands against your repo"
     fi
 
-    # Check for contract-related content
-    if grep -qi "contract" CLAUDE.md; then
-        check_pass "CLAUDE.md mentions contracts"
+    if grep -q '^\*\*Project Board:\*\*' CLAUDE.md 2>/dev/null && ! grep -q '\[GitHub Issues | Jira' CLAUDE.md 2>/dev/null; then
+        check_pass "Project Board filled in"
     else
-        check_fail "CLAUDE.md has no contract references — Claude won't check docs/contracts/ before edits"
+        check_fail "Project Board missing or placeholder — agents don't know where issues are tracked"
     fi
 
-    # Check for unfilled template placeholders
-    if grep -q '\[org/repo-name\]' CLAUDE.md 2>/dev/null || grep -q '\[GitHub Issues | Jira' CLAUDE.md 2>/dev/null; then
-        check_fail "CLAUDE.md still has template placeholders — fill in Project Context (Repository, Board, CLI, Tech Stack)"
+    if grep -q '^\*\*Board CLI:\*\*' CLAUDE.md 2>/dev/null && ! grep -q '\[gh | jira' CLAUDE.md 2>/dev/null; then
+        check_pass "Board CLI filled in"
     else
-        check_pass "CLAUDE.md has no unfilled template placeholders"
+        check_fail "Board CLI missing or placeholder — all issue automation broken"
     fi
 
-    # Check for commit rule
+    # Rule 2: commits must reference issue — journey tests depend on this
     if grep -q "NEVER run.*git commit" CLAUDE.md 2>/dev/null || grep -q "Commits Must Reference" CLAUDE.md 2>/dev/null; then
-        check_pass "CLAUDE.md has commit-must-reference-issue rule"
+        check_pass "Rule: commits must reference issue"
     else
-        check_warn "CLAUDE.md missing commit rule — Claude may commit without issue numbers"
+        check_fail "Missing commit rule — Claude will commit without #issue, journey tests silently skip"
+    fi
+
+    # Rule 3: contracts non-negotiable — Claude must check docs/contracts/ before edits
+    if grep -q "docs/contracts/" CLAUDE.md 2>/dev/null && grep -qi "non-negotiable\|must pass\|contract" CLAUDE.md 2>/dev/null; then
+        check_pass "Rule: contracts are non-negotiable"
+    else
+        check_fail "Missing contract enforcement rule — Claude won't check docs/contracts/ before editing files"
+    fi
+
+    # Rule 5: YAML not markdown — prevents contracts written as .md
+    if grep -qi "Contracts Are YAML\|NEVER write contract content" CLAUDE.md 2>/dev/null; then
+        check_pass "Rule: contracts are YAML not markdown"
+    else
+        check_fail "Missing YAML rule — Claude may write contracts into .md files instead of docs/contracts/*.yml"
+    fi
+
+    echo ""
+    echo "  HIGH (enforcement has gaps):"
+
+    # Tech Stack
+    if grep -q '^\*\*Tech Stack:\*\*' CLAUDE.md 2>/dev/null && ! grep -q '\[e.g.,' CLAUDE.md 2>/dev/null; then
+        check_pass "Tech Stack filled in"
+    else
+        check_warn "Tech Stack missing or placeholder — Claude may generate wrong framework code"
+    fi
+
+    # Contract Locations table
+    if grep -q "Contract Locations" CLAUDE.md 2>/dev/null; then
+        check_pass "Contract Locations table present"
+    else
+        check_warn "Missing Contract Locations — Claude doesn't know where to find or create contracts"
+    fi
+
+    # Active Contracts table (not just the placeholder)
+    if grep -q "Active Contracts" CLAUDE.md 2>/dev/null; then
+        if grep -q "No contracts defined yet" CLAUDE.md 2>/dev/null; then
+            check_warn "Active Contracts table is empty — Claude doesn't know what's enforced"
+        else
+            check_pass "Active Contracts table has entries"
+        fi
+    else
+        check_warn "Missing Active Contracts table — contracts exist on disk but Claude may ignore them"
+    fi
+
+    # Specflow Rules section header
+    if grep -q "Specflow Rules" CLAUDE.md 2>/dev/null; then
+        check_pass "Specflow Rules section present"
+    else
+        check_fail "Missing Specflow Rules section — run: npx @colmbyrne/specflow init ."
+    fi
+
+    echo ""
+    echo "  MEDIUM:"
+
+    # Override Protocol
+    if grep -q "override_contract:" CLAUDE.md 2>/dev/null; then
+        check_pass "Override protocol documented"
+    else
+        check_warn "Missing override protocol — Claude may override contracts without explicit human approval"
     fi
 else
     check_fail "No CLAUDE.md found — Claude has no Specflow context. Run: npx @colmbyrne/specflow init ."
