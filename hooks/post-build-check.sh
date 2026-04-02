@@ -9,8 +9,22 @@
 # Read the JSON input from stdin
 INPUT=$(cat)
 
-# Extract the command that was run
-COMMAND=$(echo "$INPUT" | jq -r '.inputs.command // empty' 2>/dev/null)
+# Extract the command that was run (pure bash, no jq dependency)
+extract_json_field() {
+    # Simple JSON field extraction using grep/sed — handles "inputs":{"command":"value"}
+    echo "$1" | grep -oP "\"$2\"\s*:\s*\"[^\"]*\"" | head -1 | sed 's/.*:\s*"\(.*\)"/\1/'
+}
+
+# Try node for robust parsing, fall back to regex
+if command -v node >/dev/null 2>&1; then
+    COMMAND=$(echo "$INPUT" | node -e "
+        let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{
+            try{const j=JSON.parse(d);process.stdout.write(j.inputs?.command||'')}catch{}
+        })
+    " 2>/dev/null)
+else
+    COMMAND=$(extract_json_field "$INPUT" "command")
+fi
 
 if [ -z "$COMMAND" ]; then
     exit 0
@@ -32,7 +46,20 @@ is_commit_command() {
 
 # Check if build/commit was successful (exit code 0 in response)
 was_successful() {
-    local exit_code=$(echo "$INPUT" | jq -r '.response.exit_code // .response.exitCode // empty' 2>/dev/null)
+    local exit_code
+    if command -v node >/dev/null 2>&1; then
+        exit_code=$(echo "$INPUT" | node -e "
+            let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{
+                try{const j=JSON.parse(d);const r=j.response;process.stdout.write(String(r?.exit_code??r?.exitCode?? ''))}catch{}
+            })
+        " 2>/dev/null)
+    else
+        # Regex fallback: try exit_code then exitCode
+        exit_code=$(echo "$INPUT" | grep -oP '"exit_code"\s*:\s*\d+' | head -1 | grep -oP '\d+')
+        if [ -z "$exit_code" ]; then
+            exit_code=$(echo "$INPUT" | grep -oP '"exitCode"\s*:\s*\d+' | head -1 | grep -oP '\d+')
+        fi
+    fi
     if [ -z "$exit_code" ]; then
         echo "Warning: could not determine build exit code — skipping tests" >&2
         return 1

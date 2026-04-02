@@ -39,6 +39,8 @@ ruflo/
 
 
 
-# Added by cargo
-
+# Build artifacts
 /target
+/dist
+/native/target
+*.node

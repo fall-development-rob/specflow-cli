@@ -71,12 +71,16 @@ echo ""
 
 echo -e "${BLUE}[1/5]${NC} Checking requirements..."
 
-if ! command -v jq &> /dev/null; then
-  echo -e "${RED}✗${NC}  jq not found — required for hook JSON parsing"
+if command -v jq &> /dev/null; then
+  echo -e "${GREEN}✓${NC} jq found"
+elif command -v node &> /dev/null; then
+  echo -e "${GREEN}✓${NC} node found (using node for JSON parsing)"
+else
+  echo -e "${RED}✗${NC}  Neither jq nor node found — one is required for hook JSON parsing"
   echo -e "    Install: brew install jq (mac) or apt install jq (linux)"
+  echo -e "    Or: install Node.js >= 20"
   exit 1
 fi
-echo -e "${GREEN}✓${NC} jq found"
 
 if ! command -v gh &> /dev/null; then
   echo -e "${YELLOW}⚠️${NC}  gh CLI not found. Install with: brew install gh"
@@ -170,11 +174,34 @@ if [ -f "$TARGET_DIR/.claude/settings.json" ]; then
       echo -e "    To fix: manually add the hooks from $HOOKS_DIR/settings.json"
       echo -e "    Or: delete .claude/settings.json and re-run this script"
     fi
+  elif command -v node &> /dev/null; then
+    # Merge using node — no jq dependency
+    TEMP_SETTINGS=$(mktemp)
+    if node -e "
+      const fs = require('fs');
+      const existing = JSON.parse(fs.readFileSync('$TARGET_DIR/.claude/settings.json', 'utf-8'));
+      const incoming = JSON.parse(fs.readFileSync('$HOOKS_DIR/settings.json', 'utf-8'));
+      const existingHooks = existing.hooks?.PostToolUse || [];
+      const newHooks = incoming.hooks?.PostToolUse || [];
+      const merged = [...existingHooks];
+      for (const nh of newHooks) {
+        const cmd = nh.hooks?.[0]?.command || '';
+        const alreadyPresent = merged.some(e => e.hooks?.some(h => h.command === cmd));
+        if (!alreadyPresent) merged.push(nh);
+      }
+      if (!existing.hooks) existing.hooks = {};
+      existing.hooks.PostToolUse = merged;
+      fs.writeFileSync('$TEMP_SETTINGS', JSON.stringify(existing, null, 2));
+    " 2>/dev/null; then
+      mv "$TEMP_SETTINGS" "$TARGET_DIR/.claude/settings.json"
+      echo -e "${GREEN}✓${NC} Merged hooks into existing settings.json (preserved existing hooks)"
+    else
+      rm -f "$TEMP_SETTINGS"
+      echo -e "${RED}✗${NC}  Cannot merge settings.json"
+    fi
   else
-    echo -e "${RED}✗${NC}  jq required to merge with existing settings.json"
+    echo -e "${RED}✗${NC}  Neither jq nor node available to merge settings.json"
     echo -e "    Your settings.json was NOT changed."
-    echo -e "    Install jq: apt install jq (linux) / brew install jq (mac)"
-    echo -e "    Then re-run this script."
   fi
 else
   cp "$HOOKS_DIR/settings.json" "$TARGET_DIR/.claude/settings.json"

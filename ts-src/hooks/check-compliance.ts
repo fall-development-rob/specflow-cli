@@ -1,0 +1,133 @@
+/**
+ * Pipeline compliance hook — runs after Write/Edit tool use.
+ * Checks changed files against contracts.
+ * Exit 0 = pass, exit 2 = violations found.
+ */
+
+import * as fs from 'fs';
+import * as path from 'path';
+import { scanFiles } from '../lib/native';
+
+interface HookInput {
+  inputs?: {
+    file_path?: string;
+    command?: string;
+  };
+}
+
+function run(): void {
+  const chunks: Buffer[] = [];
+  process.stdin.on('data', (chunk) => chunks.push(chunk));
+  process.stdin.on('end', () => {
+    const input = Buffer.concat(chunks).toString('utf-8').trim();
+
+    if (!input) {
+      process.exit(0);
+      return;
+    }
+
+    let hook: HookInput;
+    try {
+      hook = JSON.parse(input);
+    } catch {
+      process.exit(0);
+      return;
+    }
+
+    const filePath = hook.inputs?.file_path || hook.inputs?.command;
+    if (!filePath) {
+      process.exit(0);
+      return;
+    }
+
+    const projectDir = process.env.CLAUDE_PROJECT_DIR || '.';
+    const projectRoot = path.resolve(projectDir);
+    const contractsDir = path.join(projectRoot, 'docs', 'contracts');
+
+    if (!fs.existsSync(contractsDir)) {
+      process.exit(0);
+      return;
+    }
+
+    try {
+      const result = scanFiles(contractsDir, projectRoot);
+
+      if (result.violations.length === 0) {
+        process.exit(0);
+        return;
+      }
+
+      // Check pipeline compliance
+      const violations: string[] = [];
+      checkJourneyTestContracts(projectRoot, violations);
+      checkOrphanContracts(projectRoot, violations);
+      checkCsvCompiled(projectRoot, violations);
+
+      if (violations.length === 0) {
+        process.exit(0);
+        return;
+      }
+
+      process.stderr.write('\n+---------------------------------------------------------+\n');
+      process.stderr.write('|  SPECFLOW PIPELINE VIOLATION                             |\n');
+      process.stderr.write('+---------------------------------------------------------+\n\n');
+
+      for (const v of violations) {
+        process.stderr.write(`  x ${v}\n`);
+      }
+
+      process.stderr.write('\n  The correct pipeline is:\n');
+      process.stderr.write('    CSV -> compile:journeys -> YAML contracts + stubs -> fill in stubs\n\n');
+
+      process.exit(2);
+    } catch {
+      process.exit(0);
+    }
+  });
+}
+
+function checkJourneyTestContracts(root: string, violations: string[]): void {
+  const testDir = path.join(root, 'tests', 'e2e');
+  if (!fs.existsSync(testDir)) return;
+
+  const testFiles = fs.readdirSync(testDir).filter(f => f.startsWith('journey_') && f.endsWith('.spec.ts'));
+  for (const file of testFiles) {
+    const base = file.replace('.spec.ts', '');
+    const contractPath = path.join(root, 'docs', 'contracts', `${base}.yml`);
+    if (!fs.existsSync(contractPath)) {
+      violations.push(`PIPELINE SKIP: tests/e2e/${file} exists but docs/contracts/${base}.yml is missing`);
+    }
+  }
+}
+
+function checkOrphanContracts(root: string, violations: string[]): void {
+  const contractsDir = path.join(root, 'docs', 'contracts');
+  if (!fs.existsSync(contractsDir)) return;
+
+  const contractFiles = fs.readdirSync(contractsDir).filter(f => f.startsWith('journey_') && f.endsWith('.yml'));
+  for (const file of contractFiles) {
+    const base = file.replace('.yml', '');
+    const testPath = path.join(root, 'tests', 'e2e', `${base}.spec.ts`);
+    if (!fs.existsSync(testPath)) {
+      violations.push(`ORPHAN CONTRACT: docs/contracts/${file} exists but tests/e2e/${base}.spec.ts is missing`);
+    }
+  }
+}
+
+function checkCsvCompiled(root: string, violations: string[]): void {
+  const csvDir = path.join(root, 'docs', 'journeys');
+  const contractsDir = path.join(root, 'docs', 'contracts');
+
+  if (!fs.existsSync(csvDir)) return;
+
+  const csvCount = fs.readdirSync(csvDir).filter(f => f.endsWith('.csv')).length;
+  const contractCount = fs.existsSync(contractsDir)
+    ? fs.readdirSync(contractsDir).filter(f => f.startsWith('journey_') && f.endsWith('.yml')).length
+    : 0;
+
+  if (csvCount > 0 && contractCount === 0) {
+    violations.push(`CSV NOT COMPILED: Found ${csvCount} journey CSV(s) but no journey contracts`);
+  }
+}
+
+run();
