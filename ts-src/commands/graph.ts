@@ -6,13 +6,15 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import { execFileSync } from 'child_process';
+import { loadConfig } from '../lib/config';
 
 interface GraphOptions {
   dir?: string;
 }
 
 export function run(options: GraphOptions): void {
-  const dir = options.dir || '.specflow/contracts';
+  const config = loadConfig();
+  const dir = options.dir || config.contractsDir;
   const script = path.join(process.cwd(), 'scripts', 'verify-graph.cjs');
 
   // Try specflow root if not in cwd

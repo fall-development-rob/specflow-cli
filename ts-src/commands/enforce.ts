@@ -7,6 +7,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { scanFiles } from '../lib/native';
 import { printHuman, printJson } from '../lib/reporter';
+import { loadConfig } from '../lib/config';
 
 interface EnforceOptions {
   dir?: string;
@@ -16,7 +17,8 @@ interface EnforceOptions {
 
 export function run(options: EnforceOptions): void {
   const projectRoot = path.resolve(options.dir || '.');
-  const contractsDir = path.join(projectRoot, '.specflow', 'contracts');
+  const config = loadConfig(projectRoot);
+  const contractsDir = path.join(projectRoot, config.contractsDir);
 
   if (!fs.existsSync(contractsDir)) {
     console.error(`No contract directory found at ${contractsDir}. Run \`specflow init\` first.`);

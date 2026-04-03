@@ -5,6 +5,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { loadConfig } from '../lib/config';
 
 interface CompileOptions {
   args: string[];
@@ -210,8 +211,9 @@ export function run(options: CompileOptions): void {
   const journeys = groupByJourney(rows);
 
   const targetDir = path.dirname(path.resolve(csvFile));
-  const contractsDir = path.resolve(targetDir, '.specflow/contracts');
-  const testsDir = path.resolve(targetDir, '.specflow/tests/e2e');
+  const config = loadConfig(targetDir);
+  const contractsDir = path.resolve(targetDir, config.contractsDir);
+  const testsDir = path.resolve(targetDir, config.testsDir, 'e2e');
   fs.mkdirSync(contractsDir, { recursive: true });
   fs.mkdirSync(testsDir, { recursive: true });
 
