@@ -7,6 +7,7 @@ import * as path from 'path';
 import { execFileSync } from 'child_process';
 import { ToolDefinition, ToolCallResult, toolResultText, toolResultError } from './protocol';
 import { loadContracts, scanFiles, checkSnippet, validateContract } from '../lib/native';
+import { loadConfig } from '../lib/config';
 
 /** Ensure a resolved path stays within the project root. */
 function containPath(userPath: string, base: string = process.cwd()): string | null {
@@ -132,7 +133,8 @@ export function callTool(name: string, args: any): ToolCallResult {
 }
 
 function handleListContracts(args: any): ToolCallResult {
-  const dir = args.dir || '.specflow/contracts';
+  const config = loadConfig();
+  const dir = args.dir || config.contractsDir;
   try {
     const contracts = loadContracts(dir);
     let totalRules = 0;
@@ -153,9 +155,10 @@ function handleCheckCode(args: any): ToolCallResult {
   const filePath = args.file_path || 'inline.ts';
 
   try {
-    const contracts = loadContracts('.specflow/contracts');
+    const config = loadConfig();
+    const contracts = loadContracts(config.contractsDir);
     const totalRules = contracts.reduce((sum, c) => sum + c.rules.length, 0);
-    const violations = checkSnippet('.specflow/contracts', code, filePath);
+    const violations = checkSnippet(config.contractsDir, code, filePath);
     const result = {
       clean: violations.length === 0,
       violations: violations.map(v => ({
@@ -183,7 +186,8 @@ function handleGetViolations(args: any): ToolCallResult {
   if (!safePath) return toolResultError('Path must be within the project directory');
 
   try {
-    const result = scanFiles('.specflow/contracts', safePath);
+    const config = loadConfig();
+    const result = scanFiles(config.contractsDir, safePath);
     const violationList = result.violations.map(v => ({
       contract: v.contractId,
       rule: v.ruleId,
@@ -292,7 +296,8 @@ function handleCompileJourneys(args: any): ToolCallResult {
 }
 
 function handleVerifyGraph(args: any): ToolCallResult {
-  const dir = args.dir || '.specflow/contracts';
+  const config = loadConfig();
+  const dir = args.dir || config.contractsDir;
   const script = 'scripts/verify-graph.cjs';
   if (!fs.existsSync(script)) {
     return toolResultError(`Graph verification script not found: ${script}`);

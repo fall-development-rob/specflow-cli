@@ -7,6 +7,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { scanFiles } from '../lib/native';
+import { loadConfig } from '../lib/config';
 
 interface HookInput {
   inputs?: {
@@ -42,7 +43,8 @@ function run(): void {
 
     const projectDir = process.env.CLAUDE_PROJECT_DIR || '.';
     const projectRoot = path.resolve(projectDir);
-    const contractsDir = path.join(projectRoot, '.specflow', 'contracts');
+    const config = loadConfig(projectRoot);
+    const contractsDir = path.join(projectRoot, config.contractsDir);
 
     if (!fs.existsSync(contractsDir)) {
       process.exit(0);
@@ -59,9 +61,9 @@ function run(): void {
 
       // Check pipeline compliance
       const violations: string[] = [];
-      checkJourneyTestContracts(projectRoot, violations);
-      checkOrphanContracts(projectRoot, violations);
-      checkCsvCompiled(projectRoot, violations);
+      checkJourneyTestContracts(projectRoot, config.contractsDir, config.testsDir, violations);
+      checkOrphanContracts(projectRoot, config.contractsDir, config.testsDir, violations);
+      checkCsvCompiled(projectRoot, config.contractsDir, violations);
 
       if (violations.length === 0) {
         process.exit(0);
@@ -87,37 +89,37 @@ function run(): void {
   });
 }
 
-function checkJourneyTestContracts(root: string, violations: string[]): void {
-  const testDir = path.join(root, '.specflow', 'tests', 'e2e');
+function checkJourneyTestContracts(root: string, contractsDirRel: string, testsDirRel: string, violations: string[]): void {
+  const testDir = path.join(root, testsDirRel, 'e2e');
   if (!fs.existsSync(testDir)) return;
 
   const testFiles = fs.readdirSync(testDir).filter(f => f.startsWith('journey_') && f.endsWith('.spec.ts'));
   for (const file of testFiles) {
     const base = file.replace('.spec.ts', '');
-    const contractPath = path.join(root, '.specflow', 'contracts', `${base}.yml`);
+    const contractPath = path.join(root, contractsDirRel, `${base}.yml`);
     if (!fs.existsSync(contractPath)) {
-      violations.push(`PIPELINE SKIP: .specflow/tests/e2e/${file} exists but .specflow/contracts/${base}.yml is missing`);
+      violations.push(`PIPELINE SKIP: ${testsDirRel}/e2e/${file} exists but ${contractsDirRel}/${base}.yml is missing`);
     }
   }
 }
 
-function checkOrphanContracts(root: string, violations: string[]): void {
-  const contractsDir = path.join(root, '.specflow', 'contracts');
+function checkOrphanContracts(root: string, contractsDirRel: string, testsDirRel: string, violations: string[]): void {
+  const contractsDir = path.join(root, contractsDirRel);
   if (!fs.existsSync(contractsDir)) return;
 
   const contractFiles = fs.readdirSync(contractsDir).filter(f => f.startsWith('journey_') && f.endsWith('.yml'));
   for (const file of contractFiles) {
     const base = file.replace('.yml', '');
-    const testPath = path.join(root, '.specflow', 'tests', 'e2e', `${base}.spec.ts`);
+    const testPath = path.join(root, testsDirRel, 'e2e', `${base}.spec.ts`);
     if (!fs.existsSync(testPath)) {
-      violations.push(`ORPHAN CONTRACT: .specflow/contracts/${file} exists but .specflow/tests/e2e/${base}.spec.ts is missing`);
+      violations.push(`ORPHAN CONTRACT: ${contractsDirRel}/${file} exists but ${testsDirRel}/e2e/${base}.spec.ts is missing`);
     }
   }
 }
 
-function checkCsvCompiled(root: string, violations: string[]): void {
+function checkCsvCompiled(root: string, contractsDirRel: string, violations: string[]): void {
   const csvDir = path.join(root, 'docs', 'journeys');
-  const contractsDir = path.join(root, '.specflow', 'contracts');
+  const contractsDir = path.join(root, contractsDirRel);
 
   if (!fs.existsSync(csvDir)) return;
 

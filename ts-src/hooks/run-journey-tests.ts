@@ -7,6 +7,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { execFileSync } from 'child_process';
+import { loadConfig } from '../lib/config';
 
 function run(): void {
   // Consume stdin (not used directly, but must be read)
@@ -137,7 +138,8 @@ function getJourneyForIssue(issue: string): string[] {
 
 function journeyToTestFile(projectRoot: string, journey: string): string {
   // Check contract YAML for explicit test file path
-  const contractsDirs = ['.specflow/contracts', 'contracts', '.specflow'];
+  const config = loadConfig(projectRoot);
+  const contractsDirs = [config.contractsDir, 'contracts', '.specflow'];
   for (const dir of contractsDirs) {
     const contractsPath = path.join(projectRoot, dir);
     if (!fs.existsSync(contractsPath)) continue;
@@ -161,7 +163,7 @@ function journeyToTestFile(projectRoot: string, journey: string): string {
 
   // Fallback: heuristic naming J-SIGNUP-FLOW -> journey_signup_flow.spec.ts
   const name = journey.replace(/^J-/, '').toLowerCase().replace(/-/g, '_');
-  return `.specflow/tests/e2e/journey_${name}.spec.ts`;
+  return `${config.testsDir}/e2e/journey_${name}.spec.ts`;
 }
 
 function detectTestCommand(root: string): string {

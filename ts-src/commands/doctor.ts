@@ -9,6 +9,7 @@ import { execFileSync } from 'child_process';
 import { loadContracts } from '../lib/native';
 import { countFiles, isExecutable } from '../lib/fs-utils';
 import { bold, red, green, yellow, cyan, dim } from '../lib/logger';
+import { loadConfig } from '../lib/config';
 
 type Severity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
 type Status = 'pass' | 'warn' | 'fail';
@@ -28,6 +29,7 @@ interface DoctorOptions {
 
 export function run(options: DoctorOptions): void {
   const projectRoot = path.resolve(options.dir || '.');
+  const config = loadConfig(projectRoot);
   const checks: Check[] = [];
 
   // 1. Node.js >= 20
@@ -40,7 +42,7 @@ export function run(options: DoctorOptions): void {
   });
 
   // 2. Contract directory with YAML files
-  const contractsDir = path.join(projectRoot, '.specflow', 'contracts');
+  const contractsDir = path.join(projectRoot, config.contractsDir);
   const ymlCount = countFiles(contractsDir, 'yml') + countFiles(contractsDir, 'yaml');
   if (!fs.existsSync(contractsDir)) {
     checks.push({ name: 'Contract directory', severity: 'CRITICAL', status: 'fail', detail: `${contractsDir} does not exist` });
@@ -57,12 +59,12 @@ export function run(options: DoctorOptions): void {
   checks.push(checkPatternsCompile(contractsDir));
 
   // 5. Test directory exists
-  const testDir = path.join(projectRoot, '.specflow', 'tests');
+  const testDir = path.join(projectRoot, config.testsDir);
   checks.push({
     name: 'Test directory',
     severity: 'HIGH',
     status: fs.existsSync(testDir) ? 'pass' : 'warn',
-    detail: fs.existsSync(testDir) ? '.specflow/tests/ exists' : '.specflow/tests/ not found',
+    detail: fs.existsSync(testDir) ? `${config.testsDir}/ exists` : `${config.testsDir}/ not found`,
   });
 
   // 6. package.json has test scripts

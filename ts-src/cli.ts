@@ -40,7 +40,8 @@ Specflow v${pkg.version} -- Specs that enforce themselves.
 Usage: specflow <command> [options]
 
 Commands:
-  init [dir] [--wizard] [--json]      Initialize Specflow in a project
+  init [dir] [-y|--yes] [--json]      Initialize Specflow in a project
+                                       [--contracts-dir] [--tests-dir]
   doctor [dir] [--json] [--fix]       Run health checks
   enforce [dir] [--json] [--contract] Enforce contracts against files
   update [dir] [--ci]                 Update hooks and settings
@@ -75,8 +76,10 @@ async function main() {
       const { run } = require('./commands/init');
       await run({
         dir: getPositional(),
-        wizard: hasFlag('--wizard'),
+        yes: hasFlag('--yes') || hasFlag('-y'),
         json: hasFlag('--json'),
+        contractsDir: getFlagValue('--contracts-dir'),
+        testsDir: getFlagValue('--tests-dir'),
       });
       break;
     }

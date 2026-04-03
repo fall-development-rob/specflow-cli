@@ -8,6 +8,7 @@ import * as path from 'path';
 import { loadContracts, scanFiles } from '../lib/native';
 import { isExecutable } from '../lib/fs-utils';
 import { bold, red, green, yellow, cyan } from '../lib/logger';
+import { loadConfig } from '../lib/config';
 
 interface StatusOptions {
   dir?: string;
@@ -16,7 +17,8 @@ interface StatusOptions {
 
 export function run(options: StatusOptions): void {
   const projectRoot = path.resolve(options.dir || '.');
-  const contractsDir = path.join(projectRoot, '.specflow', 'contracts');
+  const config = loadConfig(projectRoot);
+  const contractsDir = path.join(projectRoot, config.contractsDir);
 
   let contractCount = 0;
   let ruleCount = 0;
