@@ -26,7 +26,8 @@ rust/                   # Rust NAPI-RS native contract engine
 bin/specflow.js         # npm package entry point → dist/cli.js
 dist/                   # Compiled TypeScript output (gitignored)
 agents/                 # 26 agent prompt templates (markdown + YAML frontmatter)
-docs/                   # Guides, reference, architecture (ADRs/PRDs/DDDs), contracts
+.specflow/contracts/    # Active project contracts (YAML)
+docs/                   # Guides, reference, architecture (ADRs/PRDs/DDDs)
 templates/contracts/    # Default contract templates (YAML)
 templates/ci/           # GitHub Actions workflow templates
 tests/                  # Jest test suites (contracts, hooks, schema, compile)
@@ -68,7 +69,7 @@ git commit -m "feat: add agent validation"
 
 ### Rule 3: Contracts Are Non-Negotiable
 
-Check `docs/contracts/` before modifying protected files.
+Check `.specflow/contracts/` before modifying protected files.
 
 ```bash
 specflow enforce .       # Contract enforcement
@@ -94,19 +95,19 @@ Work is NOT complete if tests fail.
 
 **NEVER write contract content (invariants, forbidden patterns, required patterns) into .md files.**
 
-Contracts MUST be YAML files in `docs/contracts/`:
-- Feature contracts: `docs/contracts/feature_*.yml`
-- Journey contracts: `docs/contracts/journey_*.yml`
-- Default contracts: `docs/contracts/*_defaults.yml`
+Contracts MUST be YAML files in `.specflow/contracts/`:
+- Feature contracts: `.specflow/contracts/feature_*.yml`
+- Journey contracts: `.specflow/contracts/journey_*.yml`
+- Default contracts: `.specflow/contracts/*_defaults.yml`
 
 Wrong: `docs/specflow/my-feature-invariants.md`
-Right: `docs/contracts/feature_my_feature.yml`
+Right: `.specflow/contracts/feature_my_feature.yml`
 
 ### Contract Locations
 
 | Type | Location |
 |------|----------|
-| Project contracts | `docs/contracts/*.yml` |
+| Project contracts | `.specflow/contracts/*.yml` |
 | Template contracts | `templates/contracts/*.yml` |
 | Contract tests | `tests/contracts/*.test.js` |
 | Schema tests | `tests/schema/*.test.js` |
@@ -205,15 +206,15 @@ than inventing a fresh layout.
 | Asset | Destination in target repo | Purpose |
 |------|----------|---------|
 | `agents/` | `scripts/agents/` | Subagent library for orchestration and execution |
-| `templates/contracts/*.yml` | `docs/contracts/` | Reusable default contracts |
+| `templates/contracts/*.yml` | `.specflow/contracts/` | Reusable default contracts |
 | `hooks/` via `specflow update` | `.claude/hooks/` and `.git/hooks/` | Local enforcement and journey verification |
 | `templates/ci/*.yml` | `.github/workflows/` | PR and post-merge contract enforcement |
 | `CLAUDE-MD-TEMPLATE.md` | `CLAUDE.md` | Project-specific operating instructions |
 
 ### Source Repo Maintenance Notes
 
-- Keep the contracts listed in `docs/contracts/CONTRACT_INDEX.yml` aligned with the files in `docs/contracts/`.
-- Keep `templates/contracts/` as the canonical default-contract source, and mirror the active defaults into `docs/contracts/` for verifier coverage and documentation.
+- Keep the contracts listed in `.specflow/contracts/CONTRACT_INDEX.yml` aligned with the files in `.specflow/contracts/`.
+- Keep `templates/contracts/` as the canonical default-contract source, and mirror the active defaults into `.specflow/contracts/` for verifier coverage and documentation.
 - Update `CLAUDE.md` and the CI templates together when the operating model changes so downstream repos receive a coherent kit.
 
 ## About This Repository

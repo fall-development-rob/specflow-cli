@@ -153,7 +153,7 @@ describe('generateYaml', () => {
       'J-SIGNUP-FLOW,Signup,1,Clicks signup,Shows form,yes,@alice,',
     ]);
     const parsed = yaml.load(generateYaml(journey));
-    expect(parsed.test_hooks.e2e_test_file).toBe('tests/e2e/journey_signup_flow.spec.ts');
+    expect(parsed.test_hooks.e2e_test_file).toBe('.specflow/tests/e2e/journey_signup_flow.spec.ts');
   });
 
   test('includes preconditions section', () => {

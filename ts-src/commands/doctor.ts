@@ -40,7 +40,7 @@ export function run(options: DoctorOptions): void {
   });
 
   // 2. Contract directory with YAML files
-  const contractsDir = path.join(projectRoot, 'docs', 'contracts');
+  const contractsDir = path.join(projectRoot, '.specflow', 'contracts');
   const ymlCount = countFiles(contractsDir, 'yml') + countFiles(contractsDir, 'yaml');
   if (!fs.existsSync(contractsDir)) {
     checks.push({ name: 'Contract directory', severity: 'CRITICAL', status: 'fail', detail: `${contractsDir} does not exist` });
@@ -57,12 +57,12 @@ export function run(options: DoctorOptions): void {
   checks.push(checkPatternsCompile(contractsDir));
 
   // 5. Test directory exists
-  const testDir = path.join(projectRoot, 'tests', 'contracts');
+  const testDir = path.join(projectRoot, '.specflow', 'tests');
   checks.push({
     name: 'Test directory',
     severity: 'HIGH',
     status: fs.existsSync(testDir) ? 'pass' : 'warn',
-    detail: fs.existsSync(testDir) ? 'tests/contracts/ exists' : 'tests/contracts/ not found',
+    detail: fs.existsSync(testDir) ? '.specflow/tests/ exists' : '.specflow/tests/ not found',
   });
 
   // 6. package.json has test scripts
@@ -236,7 +236,7 @@ function checkGraphIntegrity(projectRoot: string): Check {
     return { name: 'Contract graph', severity: 'LOW', status: 'warn', detail: 'verify-graph.cjs not found' };
   }
   try {
-    execFileSync('node', [script, path.join(projectRoot, 'docs', 'contracts')], { stdio: 'pipe' });
+    execFileSync('node', [script, path.join(projectRoot, '.specflow', 'contracts')], { stdio: 'pipe' });
     return { name: 'Contract graph', severity: 'LOW', status: 'pass', detail: 'Integrity checks passed' };
   } catch {
     return { name: 'Contract graph', severity: 'LOW', status: 'fail', detail: 'Graph integrity errors' };

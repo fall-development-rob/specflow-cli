@@ -137,7 +137,7 @@ function getJourneyForIssue(issue: string): string[] {
 
 function journeyToTestFile(projectRoot: string, journey: string): string {
   // Check contract YAML for explicit test file path
-  const contractsDirs = ['docs/contracts', 'contracts', 'docs'];
+  const contractsDirs = ['.specflow/contracts', 'contracts', '.specflow'];
   for (const dir of contractsDirs) {
     const contractsPath = path.join(projectRoot, dir);
     if (!fs.existsSync(contractsPath)) continue;
@@ -161,7 +161,7 @@ function journeyToTestFile(projectRoot: string, journey: string): string {
 
   // Fallback: heuristic naming J-SIGNUP-FLOW -> journey_signup_flow.spec.ts
   const name = journey.replace(/^J-/, '').toLowerCase().replace(/-/g, '_');
-  return `tests/e2e/journey_${name}.spec.ts`;
+  return `.specflow/tests/e2e/journey_${name}.spec.ts`;
 }
 
 function detectTestCommand(root: string): string {

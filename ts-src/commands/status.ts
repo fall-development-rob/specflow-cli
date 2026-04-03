@@ -16,7 +16,7 @@ interface StatusOptions {
 
 export function run(options: StatusOptions): void {
   const projectRoot = path.resolve(options.dir || '.');
-  const contractsDir = path.join(projectRoot, 'docs', 'contracts');
+  const contractsDir = path.join(projectRoot, '.specflow', 'contracts');
 
   let contractCount = 0;
   let ruleCount = 0;

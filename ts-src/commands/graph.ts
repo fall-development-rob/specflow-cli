@@ -12,7 +12,7 @@ interface GraphOptions {
 }
 
 export function run(options: GraphOptions): void {
-  const dir = options.dir || 'docs/contracts';
+  const dir = options.dir || '.specflow/contracts';
   const script = path.join(process.cwd(), 'scripts', 'verify-graph.cjs');
 
   // Try specflow root if not in cwd

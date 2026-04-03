@@ -158,7 +158,7 @@ function generateYaml(journey: Journey): string {
 
   lines.push('');
   lines.push('test_hooks:');
-  lines.push(`  e2e_test_file: tests/e2e/journey_${slug}.spec.ts`);
+  lines.push(`  e2e_test_file: .specflow/tests/e2e/journey_${slug}.spec.ts`);
   lines.push(`  checker_script: scripts/check-contracts.js`);
 
   return lines.join('\n') + '\n';
@@ -210,8 +210,8 @@ export function run(options: CompileOptions): void {
   const journeys = groupByJourney(rows);
 
   const targetDir = path.dirname(path.resolve(csvFile));
-  const contractsDir = path.resolve(targetDir, 'docs/contracts');
-  const testsDir = path.resolve(targetDir, 'tests/e2e');
+  const contractsDir = path.resolve(targetDir, '.specflow/contracts');
+  const testsDir = path.resolve(targetDir, '.specflow/tests/e2e');
   fs.mkdirSync(contractsDir, { recursive: true });
   fs.mkdirSync(testsDir, { recursive: true });
 
