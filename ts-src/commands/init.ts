@@ -30,7 +30,7 @@ export async function run(options: InitOptions): Promise<void> {
   const steps: string[] = [];
 
   // 1. Create directory structure
-  const dirs = ['docs/contracts', 'tests/contracts', 'tests/e2e', '.specflow', '.claude'];
+  const dirs = ['.specflow/contracts', '.specflow/tests', '.specflow/tests/e2e', '.specflow', '.claude'];
   for (const dir of dirs) {
     const dirPath = path.join(target, dir);
     const created = ensureDir(dirPath);
@@ -43,7 +43,7 @@ export async function run(options: InitOptions): Promise<void> {
   // 2. Copy default contract templates
   const templatesDir = path.join(specflowRoot, 'templates', 'contracts');
   if (fs.existsSync(templatesDir)) {
-    const contractsDir = path.join(target, 'docs', 'contracts');
+    const contractsDir = path.join(target, '.specflow', 'contracts');
     let copied = 0;
     const files = fs.readdirSync(templatesDir).filter(f => f.endsWith('.yml'));
     for (const file of files) {
@@ -59,14 +59,28 @@ export async function run(options: InitOptions): Promise<void> {
     steps.push('contracts');
   }
 
-  // 3. Generate CLAUDE.md from template
+  // 3. Generate or append to CLAUDE.md
   const claudeMd = path.join(target, 'CLAUDE.md');
-  if (!fs.existsSync(claudeMd)) {
+  const specflowMarker = '## Specflow Rules';
+  if (fs.existsSync(claudeMd)) {
+    const existing = fs.readFileSync(claudeMd, 'utf-8');
+    if (!existing.includes(specflowMarker)) {
+      const templatePath = path.join(specflowRoot, 'CLAUDE-MD-TEMPLATE.md');
+      if (fs.existsSync(templatePath)) {
+        const templateContent = fs.readFileSync(templatePath, 'utf-8');
+        fs.appendFileSync(claudeMd, `\n\n${specflowMarker}\n\n${templateContent}\n`);
+        if (!jsonOutput) {
+          console.log(`  ${green('+')} Appended Specflow rules to existing CLAUDE.md`);
+        }
+      }
+    }
+  } else {
     const templatePath = path.join(specflowRoot, 'CLAUDE-MD-TEMPLATE.md');
     if (fs.existsSync(templatePath)) {
-      fs.copyFileSync(templatePath, claudeMd);
+      const templateContent = fs.readFileSync(templatePath, 'utf-8');
+      fs.writeFileSync(claudeMd, `# CLAUDE.md\n\n${specflowMarker}\n\n${templateContent}\n`);
       if (!jsonOutput) {
-        console.log(`  ${green('+')} Generated CLAUDE.md from template`);
+        console.log(`  ${green('+')} Generated CLAUDE.md with Specflow rules`);
       }
     }
   }

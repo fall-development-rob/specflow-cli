@@ -2,7 +2,7 @@
  * Self-compliance tests for the Specflow project.
  * Verifies that Specflow dogfoods its own methodology.
  *
- * Contract: docs/contracts/feature_specflow_project.yml
+ * Contract: .specflow/contracts/feature_specflow_project.yml
  * Rules: PROJ-001 through PROJ-004
  */
 
@@ -146,7 +146,7 @@ describe('PROJ-003: Scripts must export for testability', () => {
 describe('PROJ-004: Key directories must exist', () => {
   const requiredDirs = [
     'agents',
-    'docs/contracts',
+    '.specflow/contracts',
     'templates/contracts',
     'scripts',
     'tests',
@@ -163,7 +163,7 @@ describe('PROJ-004: Key directories must exist', () => {
 // ─── Self-contract validation ───────────────────────────────────────────────
 
 describe('Self-contract exists and is valid', () => {
-  const contractPath = path.join(ROOT, 'docs', 'contracts', 'feature_specflow_project.yml');
+  const contractPath = path.join(ROOT, '.specflow', 'contracts', 'feature_specflow_project.yml');
 
   test('feature_specflow_project.yml exists', () => {
     expect(fs.existsSync(contractPath)).toBe(true);

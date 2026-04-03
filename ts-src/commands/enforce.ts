@@ -16,7 +16,7 @@ interface EnforceOptions {
 
 export function run(options: EnforceOptions): void {
   const projectRoot = path.resolve(options.dir || '.');
-  const contractsDir = path.join(projectRoot, 'docs', 'contracts');
+  const contractsDir = path.join(projectRoot, '.specflow', 'contracts');
 
   if (!fs.existsSync(contractsDir)) {
     console.error(`No contract directory found at ${contractsDir}. Run \`specflow init\` first.`);

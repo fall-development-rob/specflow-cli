@@ -13,7 +13,7 @@
  *
  * Usage:
  *   node scripts/verify-graph.cjs [contracts-dir]
- *   node scripts/verify-graph.cjs docs/contracts
+ *   node scripts/verify-graph.cjs .specflow/contracts
  *
  * Exit codes:
  *   0 - No errors (warnings are OK)
@@ -35,7 +35,7 @@ try {
 // Config
 // ---------------------------------------------------------------------------
 
-const contractsDir = process.argv[2] || 'docs/contracts';
+const contractsDir = process.argv[2] || '.specflow/contracts';
 const projectRoot = process.cwd();
 
 const ERRORS = [];

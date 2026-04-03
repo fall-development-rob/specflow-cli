@@ -4,8 +4,8 @@
  * specflow-compile — CSV journey compiler
  *
  * Reads a CSV file of journey definitions and produces:
- *   - docs/contracts/journey_*.yml  (one per journey_id)
- *   - tests/e2e/journey_*.spec.ts   (Playwright test stubs per journey_id)
+ *   - .specflow/contracts/journey_*.yml  (one per journey_id)
+ *   - .specflow/tests/e2e/journey_*.spec.ts   (Playwright test stubs per journey_id)
  *
  * Usage:
  *   node scripts/specflow-compile.cjs <csv-file>
@@ -289,7 +289,7 @@ function generateYaml(journey, csvFilename) {
   }
 
   yaml += `test_hooks:\n`;
-  yaml += `  e2e_test_file: "tests/e2e/journey_${slug}.spec.ts"\n`;
+  yaml += `  e2e_test_file: ".specflow/tests/e2e/journey_${slug}.spec.ts"\n`;
 
   return yaml;
 }
@@ -339,8 +339,8 @@ function ensureDir(dir) {
  * @param {string} [csvFilename] - Source CSV filename for from_spec
  */
 function writeOutputs(journeys, rootDir, csvFilename) {
-  const contractDir = resolve(rootDir, 'docs', 'contracts');
-  const testDir = resolve(rootDir, 'tests', 'e2e');
+  const contractDir = resolve(rootDir, '.specflow', 'contracts');
+  const testDir = resolve(rootDir, '.specflow', 'tests', 'e2e');
   ensureDir(contractDir);
   ensureDir(testDir);
 

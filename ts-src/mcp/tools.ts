@@ -22,7 +22,7 @@ export function toolDefinitions(): ToolDefinition[] {
       description: 'List all contracts in a directory with their rules',
       inputSchema: {
         type: 'object',
-        properties: { dir: { type: 'string', description: 'Contracts directory (defaults to docs/contracts)' } },
+        properties: { dir: { type: 'string', description: 'Contracts directory (defaults to .specflow/contracts)' } },
       },
     },
     {
@@ -78,7 +78,7 @@ export function toolDefinitions(): ToolDefinition[] {
       description: 'Verify contract graph integrity',
       inputSchema: {
         type: 'object',
-        properties: { dir: { type: 'string', description: 'Contracts directory (defaults to docs/contracts)' } },
+        properties: { dir: { type: 'string', description: 'Contracts directory (defaults to .specflow/contracts)' } },
       },
     },
     {
@@ -132,7 +132,7 @@ export function callTool(name: string, args: any): ToolCallResult {
 }
 
 function handleListContracts(args: any): ToolCallResult {
-  const dir = args.dir || 'docs/contracts';
+  const dir = args.dir || '.specflow/contracts';
   try {
     const contracts = loadContracts(dir);
     let totalRules = 0;
@@ -153,9 +153,9 @@ function handleCheckCode(args: any): ToolCallResult {
   const filePath = args.file_path || 'inline.ts';
 
   try {
-    const contracts = loadContracts('docs/contracts');
+    const contracts = loadContracts('.specflow/contracts');
     const totalRules = contracts.reduce((sum, c) => sum + c.rules.length, 0);
-    const violations = checkSnippet('docs/contracts', code, filePath);
+    const violations = checkSnippet('.specflow/contracts', code, filePath);
     const result = {
       clean: violations.length === 0,
       violations: violations.map(v => ({
@@ -183,7 +183,7 @@ function handleGetViolations(args: any): ToolCallResult {
   if (!safePath) return toolResultError('Path must be within the project directory');
 
   try {
-    const result = scanFiles('docs/contracts', safePath);
+    const result = scanFiles('.specflow/contracts', safePath);
     const violationList = result.violations.map(v => ({
       contract: v.contractId,
       rule: v.ruleId,
@@ -292,7 +292,7 @@ function handleCompileJourneys(args: any): ToolCallResult {
 }
 
 function handleVerifyGraph(args: any): ToolCallResult {
-  const dir = args.dir || 'docs/contracts';
+  const dir = args.dir || '.specflow/contracts';
   const script = 'scripts/verify-graph.cjs';
   if (!fs.existsSync(script)) {
     return toolResultError(`Graph verification script not found: ${script}`);
@@ -366,7 +366,7 @@ function handleDeferJourney(args: any): ToolCallResult {
     return toolResultError("action must be 'defer' or 'undefer'");
   }
 
-  const deferDir = path.join('docs', 'contracts', '.deferred');
+  const deferDir = path.join('.specflow', 'contracts', '.deferred');
   const deferFile = path.join(deferDir, `${journeyId}.json`);
 
   if (action === 'defer') {

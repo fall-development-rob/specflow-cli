@@ -65,11 +65,11 @@ structural_rules:
     title: "Key directories must exist"
     description: >
       The Specflow project MUST maintain its directory structure: agents/,
-      docs/contracts/, templates/contracts/, scripts/, tests/, hooks/, examples/.
+      .specflow/contracts/, templates/contracts/, scripts/, tests/, hooks/, examples/.
       Missing directories indicate structural degradation.
     required_directories:
       - "agents"
-      - "docs/contracts"
+      - ".specflow/contracts"
       - "templates/contracts"
       - "scripts"
       - "tests"

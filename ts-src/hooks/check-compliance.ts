@@ -42,7 +42,7 @@ function run(): void {
 
     const projectDir = process.env.CLAUDE_PROJECT_DIR || '.';
     const projectRoot = path.resolve(projectDir);
-    const contractsDir = path.join(projectRoot, 'docs', 'contracts');
+    const contractsDir = path.join(projectRoot, '.specflow', 'contracts');
 
     if (!fs.existsSync(contractsDir)) {
       process.exit(0);
@@ -88,36 +88,36 @@ function run(): void {
 }
 
 function checkJourneyTestContracts(root: string, violations: string[]): void {
-  const testDir = path.join(root, 'tests', 'e2e');
+  const testDir = path.join(root, '.specflow', 'tests', 'e2e');
   if (!fs.existsSync(testDir)) return;
 
   const testFiles = fs.readdirSync(testDir).filter(f => f.startsWith('journey_') && f.endsWith('.spec.ts'));
   for (const file of testFiles) {
     const base = file.replace('.spec.ts', '');
-    const contractPath = path.join(root, 'docs', 'contracts', `${base}.yml`);
+    const contractPath = path.join(root, '.specflow', 'contracts', `${base}.yml`);
     if (!fs.existsSync(contractPath)) {
-      violations.push(`PIPELINE SKIP: tests/e2e/${file} exists but docs/contracts/${base}.yml is missing`);
+      violations.push(`PIPELINE SKIP: .specflow/tests/e2e/${file} exists but .specflow/contracts/${base}.yml is missing`);
     }
   }
 }
 
 function checkOrphanContracts(root: string, violations: string[]): void {
-  const contractsDir = path.join(root, 'docs', 'contracts');
+  const contractsDir = path.join(root, '.specflow', 'contracts');
   if (!fs.existsSync(contractsDir)) return;
 
   const contractFiles = fs.readdirSync(contractsDir).filter(f => f.startsWith('journey_') && f.endsWith('.yml'));
   for (const file of contractFiles) {
     const base = file.replace('.yml', '');
-    const testPath = path.join(root, 'tests', 'e2e', `${base}.spec.ts`);
+    const testPath = path.join(root, '.specflow', 'tests', 'e2e', `${base}.spec.ts`);
     if (!fs.existsSync(testPath)) {
-      violations.push(`ORPHAN CONTRACT: docs/contracts/${file} exists but tests/e2e/${base}.spec.ts is missing`);
+      violations.push(`ORPHAN CONTRACT: .specflow/contracts/${file} exists but .specflow/tests/e2e/${base}.spec.ts is missing`);
     }
   }
 }
 
 function checkCsvCompiled(root: string, violations: string[]): void {
   const csvDir = path.join(root, 'docs', 'journeys');
-  const contractsDir = path.join(root, 'docs', 'contracts');
+  const contractsDir = path.join(root, '.specflow', 'contracts');
 
   if (!fs.existsSync(csvDir)) return;
 

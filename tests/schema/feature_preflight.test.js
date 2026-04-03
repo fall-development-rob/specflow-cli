@@ -1,5 +1,5 @@
 /**
- * Schema validation test for docs/contracts/feature_preflight.yml
+ * Schema validation test for .specflow/contracts/feature_preflight.yml
  *
  * This contract is a BOARD-AUDITOR RULE SET — not a source-code pattern scanner.
  * It defines required fields in GitHub ticket bodies, not regex patterns against source files.
@@ -20,7 +20,7 @@ const CONTRACT_PATH = path.join(
   __dirname,
   '..',
   '..',
-  'docs',
+  '.specflow',
   'contracts',
   'feature_preflight.yml'
 );
@@ -37,7 +37,7 @@ describe('feature_preflight.yml — board-auditor rule set', () => {
   // ─── 1. File validity ────────────────────────────────────────────────────────
 
   describe('file validity', () => {
-    test('file exists at docs/contracts/feature_preflight.yml', () => {
+    test('file exists at .specflow/contracts/feature_preflight.yml', () => {
       expect(fs.existsSync(CONTRACT_PATH)).toBe(true);
     });
 
