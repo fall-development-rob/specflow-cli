@@ -152,7 +152,7 @@ function handleListContracts(args: any): ToolCallResult {
 function handleCheckCode(args: any): ToolCallResult {
   const code = args.code;
   if (!code) return toolResultError('Missing required parameter: code');
-  const filePath = args.file_path || 'inline.ts';
+  const filePath = args.file_path || undefined;
 
   try {
     const config = loadConfig();
