@@ -126,3 +126,30 @@ Considered but deferred. Auto-generating schema docs from the YAML parser is via
 ### 3. In-CLI help pages
 
 Partially adopted via `specflow agent show` and MCP tools, but not sufficient for ambient context like the core operating loop, which is better served as a Claude Code skill.
+
+---
+
+## AgentDB as Storage and Query Layer
+
+[ADR-007](ADR-007-agentdb-knowledge-graph.md) introduces AgentDB as the persistent storage and query layer that powers the component approach described above. The relationship:
+
+- **ADR-006** defines *what* knowledge is embedded and *where* it goes (skills, agents, MCP tools, hooks)
+- **ADR-007** defines *how* that knowledge becomes persistent, queryable, and learning
+
+### How AgentDB Powers Each Component
+
+| Component | ADR-006 Delivery | ADR-007 Storage/Query Layer |
+|-----------|-----------------|---------------------------|
+| Skills | `.claude/skills/specflow.md` — static operating loop | AgentDB skill library — learned fix patterns with confidence scores |
+| Agent context | Contract bindings in frontmatter | Agent nodes in graph with performance metrics and fix history |
+| MCP tools | `specflow_get_schema`, `specflow_get_example` | `specflow_query_graph`, `specflow_get_fix_suggestion`, `specflow_get_impact` |
+| Hooks | `check-compliance.ts` — real-time scanning | Violations recorded in graph; fix suggestions included in hook output |
+
+### Key Integration Points
+
+- **Skills** live in the AgentDB skill library as Skill nodes, discovered automatically from fix patterns
+- **Agent knowledge** is represented as graph nodes — agents, contracts, rules, and the edges between them
+- **MCP tools** query the graph using Cypher, exposing the full knowledge graph to Claude Code
+- **Hook enforcement** records violations in real-time and queries the skill library for fix suggestions
+
+The static components (skill file, agent prompts, schema tools) provide the framework. AgentDB adds the learning layer — turning one-shot knowledge delivery into a system that improves with use.
