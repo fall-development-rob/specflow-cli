@@ -330,3 +330,106 @@ Unlike static docs, embedded knowledge stays current because:
 - `specflow agent show <name>` returns full content
 - `specflow agent search <query>` finds relevant agents
 - MCP tools return matching data
+
+---
+
+## Agent Graph Integration
+
+With the knowledge graph ([DDD-004](DDD-004-knowledge-graph.md), [ADR-007](../adrs/ADR-007-agentdb-knowledge-graph.md)), agents become graph nodes with edges to the contracts they fix and performance metrics tracked over time.
+
+### Agents as Graph Nodes
+
+When `specflow init` indexes agents, each agent becomes a node in the knowledge graph:
+
+```
+Agent (graph node)
+├── name: string            # From frontmatter
+├── category: string        # From frontmatter
+├── trigger: string         # From frontmatter
+├── fix_count: number       # Total fixes attempted (tracked by graph)
+├── success_rate: number    # Fix success ratio (calculated from Fix nodes)
+└── last_invoked: timestamp # When this agent last performed a fix
+```
+
+Edges connect agents to the contracts they work with:
+
+```
+Agent --binds_to--> Contract     # From frontmatter contracts field
+Agent --fixed--> Fix             # When agent performs a fix
+Agent --specializes_in--> Rule   # Derived from fix history
+```
+
+### heal-loop and Skill Library
+
+The heal-loop agent gains access to the skill library before attempting fixes:
+
+```
+heal-loop receives a violation
+    │
+    ▼
+1. Query skill library:
+   MATCH (s:Skill) WHERE $ruleId IN s.rule_ids AND s.confidence >= 0.7
+   RETURN s ORDER BY s.confidence DESC LIMIT 1
+    │
+    ├── Skill found → apply skill's fix_template
+    │
+    └── No skill → fall back to heuristic fix (existing behavior)
+    │
+    ▼
+2. Record Fix node:
+   - violation_id, method ("skill" or "heuristic"), agent ("heal-loop")
+   - code_before, code_after
+    │
+    ▼
+3. Re-enforce to verify fix
+    │
+    ▼
+4. Record outcome (success/failure)
+   - Update agent's fix_count and success_rate
+   - If skill was used: update skill's uses/successes/failures
+```
+
+### Agent Routing via Graph
+
+The graph enables intelligent agent routing — selecting the best agent for a violation based on historical performance:
+
+```cypher
+MATCH (a:Agent)-[:FIXED]->(f:Fix)-[:FIXED_BY]-(v:Violation)
+WHERE v.rule_id = 'SEC-003' AND f.outcome = 'success'
+RETURN a.name, count(f) AS wins, a.success_rate
+ORDER BY a.success_rate DESC
+```
+
+This allows the system to route violations to the agent most likely to fix them successfully, rather than always defaulting to heal-loop.
+
+### Reflexion Memory
+
+Agent outcomes are recorded for reflexion memory — a cognitive pattern where the agent learns from its own failures:
+
+| Outcome | Graph Action | Effect |
+|---------|-------------|--------|
+| Fix succeeded | Record success, increment skill confidence | Agent tries this approach again |
+| Fix failed | Record failure, decrement skill confidence | Agent avoids this approach next time |
+| Fix caused new violation | Record causal link | Agent learns to check for side effects |
+
+The reflexion cycle:
+
+```
+1. Agent attempts fix
+2. Outcome recorded in graph
+3. Next time agent faces similar violation:
+   a. Query: "what did I try last time?"
+   b. Filter out methods with outcome = "failure"
+   c. Prefer methods with outcome = "success"
+```
+
+### Agent Performance Dashboard
+
+`specflow agent list --stats` can show agent performance from the graph:
+
+```
+Name              Category      Fixes   Success Rate   Last Active
+heal-loop         remediation   45      0.82           2h ago
+contract-gen      generation    12      0.91           1d ago
+code-reviewer     compliance    8       0.75           3d ago
+```

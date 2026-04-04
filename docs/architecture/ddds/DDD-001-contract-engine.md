@@ -295,3 +295,69 @@ scope:
 ```
 
 This is a contract template issue, not an engine issue. The engine respects whatever scope is defined — it's the default contract templates that need broader coverage.
+
+---
+
+## Graph Integration
+
+The contract engine feeds the knowledge graph (see [DDD-004](DDD-004-knowledge-graph.md), [ADR-007](../adrs/ADR-007-agentdb-knowledge-graph.md)). YAML remains the source of truth — the graph is a derived, enriched view that adds memory and learning on top.
+
+### ContractLoader → Graph Nodes
+
+When `specflow init` runs, ContractLoader materializes contracts as graph nodes:
+
+```
+ContractLoader.loadAll(directory)
+    │
+    ▼
+Contract[] (in-memory aggregates)
+    │
+    ▼
+GraphBuilder.indexContracts(contracts)
+    │
+    ├── For each Contract:
+    │     Create Contract node (id, version, status, path)
+    │
+    ├── For each Rule in Contract:
+    │     Create Rule node (id, description, severity, scope)
+    │     Create has_rule edge (Contract → Rule)
+    │
+    └── For each scope glob in Rule:
+          Resolve glob → File nodes
+          Create scopes_to edges (Rule → File)
+```
+
+The graph mirrors the contract structure but enriches it with resolved file scopes, violation history, and fix records that don't exist in YAML.
+
+### ContractScanner → Violation Records
+
+When `specflow enforce` runs, ContractScanner produces Violations that the ViolationRecorder writes to the graph:
+
+```
+ContractScanner.scanDirectory(dir, contracts)
+    │
+    ▼
+Violation[] (value objects — existing behavior, unchanged)
+    │
+    ├── ContractReporter (existing: format for CLI/JSON output)
+    │
+    └── ViolationRecorder (new: write to knowledge graph)
+          │
+          ├── Create/update Violation node per violation
+          ├── Create/update violated_in edge (Rule → File)
+          └── Link to Episode record (one per enforce run)
+```
+
+The scanner itself is unchanged — it still produces `Violation[]` as output. The ViolationRecorder is a new consumer that writes to the graph in addition to the existing reporter.
+
+### Sync Protocol
+
+The graph must stay in sync with YAML sources:
+
+| Event | Graph Action |
+|-------|-------------|
+| New contract YAML added | Create Contract + Rule + Pattern nodes |
+| Contract YAML modified | Update existing nodes, add/remove rules |
+| Contract YAML deleted | Mark Contract node as deprecated (not deleted — history preserved) |
+| Rule scope changed | Re-resolve scope globs, update scopes_to edges |
+| `specflow init` re-run | Full sync via `GraphBuilder.sync()` — report additions/removals |

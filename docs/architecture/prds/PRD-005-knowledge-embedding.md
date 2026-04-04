@@ -240,3 +240,49 @@ For each file in **/*.csv matching journey pattern:
 - [ ] `check-compliance.ts` detects uncompiled journey CSVs and reports them
 - [ ] Warnings don't block the build (exit 0) but are visible in output
 - [ ] Integration test covers each detection case
+
+---
+
+## AgentDB as Implementation Layer
+
+With the adoption of AgentDB as the knowledge graph foundation ([ADR-007](../adrs/ADR-007-agentdb-knowledge-graph.md), [PRD-006](PRD-006-knowledge-graph.md)), several components specified above gain a persistent, queryable backend:
+
+### Skills → AgentDB Skill Library
+
+The Claude Code skill (Component 1) delivers knowledge as ambient context. AgentDB extends this with a **learned skill library** — reusable fix patterns extracted from enforcement history:
+
+- Skills are stored as Skill nodes in the knowledge graph (`.specflow/knowledge.rvf`)
+- Each skill has a confidence score based on success/failure ratio
+- The heal-loop agent queries the skill library before attempting fixes
+- New skills are discovered automatically after N successful fixes of the same pattern
+
+The static skill file (`.claude/skills/specflow.md`) provides the operating framework; the AgentDB skill library provides learned, project-specific fix patterns.
+
+### Schema Knowledge → Graph Nodes Queryable via MCP
+
+The MCP tools (Component 2) return schema documentation on demand. AgentDB extends this with **graph-backed queries**:
+
+- `specflow_get_schema` — returns static schema documentation (unchanged)
+- `specflow_query_graph` — executes Cypher queries against contract/rule/pattern nodes in the graph
+- `specflow_get_fix_suggestion` — queries the skill library for a specific violation
+
+Schema knowledge is represented in the graph as Contract + Rule + Pattern nodes, enabling queries like "which rules apply to this file?" or "what patterns does SEC-003 check for?"
+
+### Agent Coordination → Graph Edges Between Agents
+
+Agent enrichment (Component 4) embeds coordination knowledge in prompts. AgentDB extends this with **graph-backed agent relationships**:
+
+- Agents are graph nodes with edges to the contracts they fix
+- Agent performance (fix_count, success_rate) is tracked in the graph
+- Agent routing queries identify the best agent for a violation type
+- Reflexion memory prevents agents from repeating failed approaches
+
+### Examples → Generated from Graph Patterns
+
+The `specflow_get_example` MCP tool (Component 2b) returns hardcoded annotated examples. AgentDB enables **graph-derived examples**:
+
+- Query the graph for the most common violation patterns
+- Generate example contracts that address those patterns
+- Include real fix suggestions from the skill library as inline annotations
+
+This is a future enhancement — the static examples remain the default until the graph has sufficient history.

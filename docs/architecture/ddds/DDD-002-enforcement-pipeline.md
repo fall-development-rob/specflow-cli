@@ -253,3 +253,102 @@ The "Edit-Time Enforcement" section above describes the intended behavior (steps
 The `--json` flag controls output **format**, not exit **behavior**. Currently, `--json` mode always exits 0. This breaks CI pipelines that use `specflow enforce --json` to get machine-readable output while still gating on violations.
 
 **Fix:** Determine exit code from scan results BEFORE formatting output. Apply `process.exitCode = 1` when violations exist, then format output in the requested mode. The exit code and the output format are independent concerns.
+
+---
+
+## Learning Enforcement
+
+With the knowledge graph integration ([DDD-004](DDD-004-knowledge-graph.md), [ADR-007](../adrs/ADR-007-agentdb-knowledge-graph.md)), the enforcement pipeline becomes stateful. Each gate gains read/write access to the graph, transforming enforce from a one-shot scan into a learning loop.
+
+### Enhanced Pipeline Flow
+
+```
+Developer writes code
+        │
+        ▼
+┌─ MCP Check (proactive) ──────────────────────┐
+│  Claude calls specflow_check_code             │
+│  NEW: Also calls specflow_get_fix_suggestion  │
+│  to preemptively avoid known violation patterns│
+└───────────────────────────────────────────────┘
+        │
+        ▼
+┌─ Edit Check (reactive) ───────────────────────┐
+│  PostToolUse hook fires after Write/Edit       │
+│  Scans changed file against all contracts      │
+│  NEW: Records violations in graph              │
+│  NEW: Includes fix suggestions in error output │
+│  Exit 2 = show error + suggestion to Claude    │
+└───────────────────────────────────────────────┘
+        │
+        ▼
+┌─ Enforce Gate ────────────────────────────────┐
+│  specflow enforce                             │
+│  Standard scan (unchanged)                    │
+│  NEW: Record violations in graph (Episode)    │
+│  NEW: Query skill library for fix suggestions │
+│  NEW: Include suggestions in output           │
+│  Exit 1 = violations found                    │
+└───────────────────────────────────────────────┘
+        │
+        ▼
+┌─ Fix Loop ────────────────────────────────────┐
+│  heal-loop agent or manual fix                │
+│  NEW: Query graph: "what fix worked before?"  │
+│  NEW: Apply known skill if confidence >= 0.7  │
+│  NEW: Record fix attempt + outcome in graph   │
+│  Re-run enforce to verify fix                 │
+└───────────────────────────────────────────────┘
+        │
+        ▼
+┌─ CI Gate ─────────────────────────────────────┐
+│  GitHub Actions                               │
+│  specflow enforce (same as above)             │
+│  NEW: Violations recorded in graph for trend  │
+│  Blocks merge if violations found             │
+└───────────────────────────────────────────────┘
+```
+
+### Graph Reads and Writes at Each Step
+
+| Pipeline Step | Graph Read | Graph Write |
+|--------------|------------|-------------|
+| MCP Check | Query skill library for preemptive suggestions | None (advisory only) |
+| Edit Check | Query skills for fix suggestion on violation | Record violation in graph |
+| Enforce | Query skills for suggestions; query attention weights for scan priority | Record Episode + all violations |
+| Fix Loop | Query skill library; query fix history for this rule | Record Fix node with outcome |
+| CI Gate | (same as Enforce) | (same as Enforce) |
+
+### Learning Cycle
+
+The pipeline forms a closed learning loop:
+
+```
+Enforce → finds violations
+    ↓
+Record violations in graph
+    ↓
+Fix attempt (heal-loop or manual)
+    ↓
+Record fix + outcome in graph
+    ↓
+Re-enforce → verify fix worked
+    ↓
+If success: increment skill confidence
+If failure: record as failed fix → reflexion memory
+    ↓
+After N successes: promote to Skill
+    ↓
+Next enforce: suggest this Skill for similar violations
+```
+
+### Backward Compatibility
+
+The graph integration is additive. If `.specflow/knowledge.rvf` doesn't exist:
+
+- `specflow enforce` works exactly as before (no suggestions, no recording)
+- Hooks work exactly as before
+- CI gates work exactly as before
+- No error, no degradation — just no learning
+
+The graph is created by `specflow init` and is opt-in via its presence.
