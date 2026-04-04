@@ -23,7 +23,7 @@ This directory contains the planning, architecture, and design documents for tra
 | [PRD-003: Installation & Packaging](prds/PRD-003-installation-packaging.md) | 4 | One-line install, clean npm package, global CLI |
 | [PRD-004: Agent System](prds/PRD-004-agent-system.md) | 5 | Agent frontmatter, registry, CLI commands, MCP tools |
 | [PRD-005: Knowledge Embedding](prds/PRD-005-knowledge-embedding.md) | 9 | Skill, MCP tools, new agent, agent enrichment, hook enhancement |
-| [PRD-006: Knowledge Graph](prds/PRD-006-knowledge-graph.md) | 10 | AgentDB knowledge graph, violation recording, fix tracking, skill discovery, MCP graph tools |
+| [PRD-006: Knowledge Graph](prds/PRD-006-knowledge-graph.md) | 10 | sql.js knowledge graph, violation recording, fix tracking, skill discovery, MCP graph tools |
 
 ### ADRs (Architecture Decision Records)
 
@@ -35,7 +35,7 @@ This directory contains the planning, architecture, and design documents for tra
 | [ADR-004: MCP Server Design](adrs/ADR-004-mcp-server-design.md) | Stdio JSON-RPC, minimal protocol, reuse contract engine |
 | [ADR-005: Agent Registry](adrs/ADR-005-agent-registry.md) | YAML frontmatter on agent files, runtime index, no manifest file |
 | [ADR-006: Knowledge as Components](adrs/ADR-006-knowledge-as-components.md) | Embed knowledge in skills, agents, MCP tools, and hooks instead of static docs |
-| [ADR-007: AgentDB Knowledge Graph](adrs/ADR-007-agentdb-knowledge-graph.md) | Use AgentDB as persistent knowledge graph and learning memory layer |
+| [ADR-007: Knowledge Graph (Amended)](adrs/ADR-007-agentdb-knowledge-graph.md) | Use sql.js (WASM SQLite) as knowledge graph storage layer; AgentDB deferred to future stable release |
 
 ### DDDs (Domain Design Documents)
 
@@ -44,7 +44,7 @@ This directory contains the planning, architecture, and design documents for tra
 | [DDD-001: Contract Engine](ddds/DDD-001-contract-engine.md) | YAML loading, regex compilation, file scanning, violation reporting |
 | [DDD-002: Enforcement Pipeline](ddds/DDD-002-enforcement-pipeline.md) | Git/build/edit/CI gates, hook protocol, journey enforcement, deferrals |
 | [DDD-003: Agent Registry](ddds/DDD-003-agent-registry.md) | Agent discovery, search, contract context injection |
-| [DDD-004: Knowledge Graph](ddds/DDD-004-knowledge-graph.md) | Graph model, domain services, query patterns, AgentDB integration |
+| [DDD-004: Knowledge Graph](ddds/DDD-004-knowledge-graph.md) | Graph model, domain services, SQL query patterns, sql.js integration |
 
 ---
 
@@ -78,7 +78,7 @@ Phase 8: Simulation Fixes (BLOCKING v1.0)
 Phase 9: Knowledge Embedding (PRD-005, ADR-006)
     |
     v
-Phase 10: Knowledge Graph (PRD-006, ADR-007, DDD-004)
+Phase 10: Knowledge Graph via sql.js (PRD-006, ADR-007 Amended, DDD-004)
     |
     v
 v1.0 Release

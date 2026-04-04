@@ -426,48 +426,63 @@ v1.0 Release
 
 ---
 
-## Phase 10: Knowledge Graph Integration
+## Phase 10: Knowledge Graph via sql.js
 
 **Duration:** 3-5 days
-**Objective:** Integrate AgentDB as a persistent knowledge graph, making enforcement stateful and learning. The system records violations, tracks fixes, extracts reusable skills, and suggests fixes based on history.
+**Objective:** Integrate a persistent knowledge graph via sql.js (WASM SQLite), making enforcement stateful. The system records violations, tracks fixes, extracts reusable skills via frequency-based pattern extraction, and suggests fixes based on history.
 **Depends on:** Phase 8 (Simulation Fixes), Phase 9 (Knowledge Embedding)
 
 ### Background
 
-Phases 1-9 deliver a working CLI with contract enforcement, MCP integration, agents, and knowledge embedding. But enforcement is still stateless — every `specflow enforce` run starts fresh. Phase 10 adds persistent memory via AgentDB (`agentdb@3.0.0-alpha.11`), storing the graph in `.specflow/knowledge.rvf`.
+Phases 1-9 deliver a working CLI with contract enforcement, MCP integration, agents, and knowledge embedding. But enforcement is still stateless — every `specflow enforce` run starts fresh. Phase 10 adds persistent memory via sql.js, storing the graph in `.specflow/knowledge.db`.
+
+> **Note:** AgentDB (`agentdb@3.0.0-alpha.11`) was evaluated but its core APIs are broken in alpha (see [ADR-007 Amendment](../adrs/ADR-007-agentdb-knowledge-graph.md#amendment-2026-04-04)). sql.js is what AgentDB uses internally — stable, proven, zero native deps. When AgentDB reaches a stable release, it becomes a migration target. The schema is designed to be implementation-agnostic.
+
+### Scope
+
+Phase 10 focuses on the **structured graph with basic SQL querying**: nodes, edges, violation recording, fix tracking, frequency-based skill discovery, and SQL-based suggestions. **No ML, RL, GNN, or self-learning features in this phase.** Those are deferred to a future AgentDB migration.
 
 ### Tasks
 
 | # | Task | Component |
 |---|------|-----------|
-| 10.1 | Add `agentdb` dependency to `package.json` | package.json |
-| 10.2 | Create GraphBuilder service — materializes YAML contracts + agents into graph nodes | `ts-src/lib/graph-builder.ts` |
-| 10.3 | Integrate GraphBuilder into `specflow init` — create `.specflow/knowledge.rvf` | `ts-src/commands/init.ts` |
-| 10.4 | Create ViolationRecorder service — records enforce results in graph | `ts-src/lib/violation-recorder.ts` |
-| 10.5 | Integrate ViolationRecorder into `specflow enforce` — record violations after scan | `ts-src/commands/enforce.ts` |
-| 10.6 | Create FixTracker service — records fix attempts and outcomes | `ts-src/lib/fix-tracker.ts` |
-| 10.7 | Create SkillDiscovery service — extracts reusable fix patterns | `ts-src/lib/skill-discovery.ts` |
-| 10.8 | Add fix suggestions to `specflow enforce` output | `ts-src/commands/enforce.ts` |
-| 10.9 | Add MCP tools: `specflow_query_graph`, `specflow_get_fix_suggestion`, `specflow_get_impact` | `ts-src/mcp/tools.ts` |
-| 10.10 | Add `specflow impact` command | `ts-src/commands/impact.ts` |
-| 10.11 | Add `specflow status --history` for compliance trending | `ts-src/commands/status.ts` |
-| 10.12 | Add `specflow learn` command for nightly consolidation | `ts-src/commands/learn.ts` |
-| 10.13 | Integrate graph queries into heal-loop agent workflow | Agent prompt + MCP tools |
-| 10.14 | Update hooks to record violations in real-time | `ts-src/hooks/check-compliance.ts` |
-| 10.15 | Add regression tests for all graph features | `tests/graph/*.test.js` |
+| 10.1 | Add `sql.js` dependency to `package.json` | package.json |
+| 10.2 | Create SQL schema (nodes, edges, indexes) | `ts-src/lib/graph-schema.ts` |
+| 10.3 | Create GraphBuilder service — materializes YAML contracts + agents into graph nodes via INSERT | `ts-src/lib/graph-builder.ts` |
+| 10.4 | Integrate GraphBuilder into `specflow init` — create `.specflow/knowledge.db` | `ts-src/commands/init.ts` |
+| 10.5 | Create ViolationRecorder service — records enforce results via INSERT | `ts-src/lib/violation-recorder.ts` |
+| 10.6 | Integrate ViolationRecorder into `specflow enforce` — record violations after scan | `ts-src/commands/enforce.ts` |
+| 10.7 | Create FixTracker service — records fix attempts and outcomes via INSERT/UPDATE | `ts-src/lib/fix-tracker.ts` |
+| 10.8 | Create SkillDiscovery service — frequency-based pattern extraction via SQL GROUP BY | `ts-src/lib/skill-discovery.ts` |
+| 10.9 | Add fix suggestions to `specflow enforce` output (SQL ranking, not self-learning) | `ts-src/commands/enforce.ts` |
+| 10.10 | Add MCP tools: `specflow_query_graph` (SQL), `specflow_get_fix_suggestion`, `specflow_get_impact` | `ts-src/mcp/tools.ts` |
+| 10.11 | Add `specflow impact` command (recursive CTE queries) | `ts-src/commands/impact.ts` |
+| 10.12 | Add `specflow status --history` for compliance trending (GROUP BY date) | `ts-src/commands/status.ts` |
+| 10.13 | Add `specflow learn` command for consolidation (DELETE old, UPDATE confidence, VACUUM) | `ts-src/commands/learn.ts` |
+| 10.14 | Integrate graph queries into heal-loop agent workflow | Agent prompt + MCP tools |
+| 10.15 | Update hooks to record violations in real-time | `ts-src/hooks/check-compliance.ts` |
+| 10.16 | Add regression tests for all graph features | `tests/graph/*.test.js` |
+
+### Future: AgentDB Migration Path
+
+When AgentDB reaches a stable release:
+1. Replace sql.js initialization with AgentDB initialization
+2. Replace raw SQL queries with AgentDB cognitive memory APIs
+3. Gain self-learning search, RL algorithms, GNN attention, witness chain for free
+4. No schema changes required — same node/edge model
 
 ### Exit Criteria
 
-- `specflow init` creates `.specflow/knowledge.rvf` with indexed contracts and agents
+- `specflow init` creates `.specflow/knowledge.db` with indexed contracts and agents
 - `specflow enforce` records violations in the graph and shows fix suggestions
 - `specflow status --history` shows violation trends over time
 - `specflow impact` predicts effects of contract changes
-- MCP tools expose graph queries to Claude Code
+- MCP tools expose graph queries (SQL) to Claude Code
 - heal-loop agent queries skill library before attempting fixes
 - All 678+ tests pass, plus new graph-specific tests
 
 ### Related Documents
 
-- [ADR-007: AgentDB as Knowledge Graph](../adrs/ADR-007-agentdb-knowledge-graph.md)
+- [ADR-007: Knowledge Graph (Amended)](../adrs/ADR-007-agentdb-knowledge-graph.md)
 - [DDD-004: Knowledge Graph Domain Design](../ddds/DDD-004-knowledge-graph.md)
 - [PRD-006: Knowledge Graph Integration](../prds/PRD-006-knowledge-graph.md)

@@ -247,3 +247,119 @@ IMPORTANT: [Project-specific constraints]
 - [ ] Sprint summary posted after each wave
 - [ ] No migration number conflicts
 - [ ] No file path conflicts between parallel agents
+
+---
+
+## Workflow State Machine
+
+### Wave Execution Flow
+
+Each wave follows this state machine:
+
+```
+WAVE LIFECYCLE:
+  init -> dependency_resolution -> parallel_spawn -> execution -> gate_check -> complete
+    |                                                    |            |
+    v                                                    v            v
+  skip (no issues)                                   blocked      failed
+                                                        |            |
+                                                        v            v
+                                                     retry       escalate
+                                                        |
+                                                        v
+                                                   gate_check
+```
+
+### Phase Transitions
+
+| From | To | Trigger | Actions |
+|------|----|---------|---------|
+| **init** | **dependency_resolution** | Wave N selected | Load issues, check prior wave complete |
+| **dependency_resolution** | **parallel_spawn** | All dependencies met | Pre-assign resources (migration numbers, file paths) |
+| **dependency_resolution** | **skip** | No issues qualify | Log and advance to next wave |
+| **parallel_spawn** | **execution** | All agents launched | Create TaskCreate entries with blockedBy |
+| **execution** | **gate_check** | All agents report done | Collect READY_FOR_CLOSURE from all teammates |
+| **execution** | **blocked** | Any agent reports BLOCKED | Assess: retry, reassign, or escalate |
+| **gate_check** | **complete** | All gates pass | Post sprint summary, advance to next wave |
+| **gate_check** | **failed** | Gate failure | Invoke heal-loop for contract failures, retry for test failures |
+| **blocked** | **retry** | Blocker resolved | Re-launch affected agent |
+| **retry** | **gate_check** | Agent re-completes | Re-run gates |
+| **failed** | **escalate** | Max retries exceeded | Stop wave, report to user |
+
+### Issue State Transitions Within a Sprint
+
+```
+For each issue in the wave:
+
+  1. CHECK_CONTRACTS
+     - Load contracts from .specflow/contracts/
+     - Verify feature contract exists
+     - If missing: spawn contract-generator
+     -> IMPLEMENT
+
+  2. IMPLEMENT
+     - Spawn appropriate agent (migration-builder, frontend-builder, etc.)
+     - Agent reads issue spec, writes code
+     - Agent posts progress comment on issue
+     -> TEST
+
+  3. TEST
+     - Run contract tests: npm test -- contracts
+     - If FAIL: invoke heal-loop (Phase 6a)
+       - heal-loop fixes -> re-run tests
+       - heal-loop exhausted -> BLOCKED
+     - Run E2E tests: npx playwright test
+     - If FAIL: BLOCKED
+     -> ENFORCE
+
+  4. ENFORCE
+     - Run specflow enforce .
+     - Verify all rules pass for modified files
+     - If violation: back to heal-loop or BLOCKED
+     -> COMMIT
+
+  5. COMMIT
+     - Stage changes
+     - Commit with issue reference: "feat: description (#N)"
+     - Push to branch
+     -> READY_FOR_CLOSURE
+
+  6. READY_FOR_CLOSURE
+     - Report to waves-controller
+     - Wait for wave gate (Tier 2) and regression gate (Tier 3)
+     -> CLOSED (after gates pass)
+```
+
+### Failure Handling Matrix
+
+| Failure Type | First Response | Second Response | Final |
+|-------------|---------------|-----------------|-------|
+| Contract violation | heal-loop (auto-fix) | heal-loop retry (up to 3x) | Escalate to user |
+| Build error (TypeScript) | Read error, fix locally | Retry build | Escalate to user |
+| Test failure (unit) | Debug, fix, re-run | Retry once | Mark blocked |
+| Test failure (E2E) | Check selectors, fix | Retry once | Mark blocked |
+| Migration conflict | db-coordinator reassign | Rewrite migration | Escalate |
+| Dependency unmet | Wait for blocker | Skip to next wave | Log and continue |
+
+### Progress Reporting
+
+After each wave, the sprint-executor reports:
+
+```
+SPRINT PROGRESS — Wave N/M
+═══════════════════════════════════════
+Issues attempted: X
+Issues completed: Y
+Issues blocked: Z
+Issues skipped: W
+
+Files created: N
+Files modified: N
+Migrations applied: N
+
+Contract tests: PASS/FAIL (N rules checked)
+Journey tests: PASS/FAIL (N journeys verified)
+
+Next wave: [issues] or "All waves complete"
+═══════════════════════════════════════
+```

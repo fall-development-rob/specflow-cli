@@ -791,3 +791,86 @@ Wait for all to complete, then proceed to next phase.
 - Phase 6: test-runner, journey-enforcer (sequential then parallel)
 - Phase 6a: heal-loop (on contract test failure, one per violation)
 - Phase 7: ticket-closer (parallel, one per issue)
+
+---
+
+## Agent Coordination Protocol
+
+This section defines how agents communicate, coordinate, and transition through work states.
+
+### Communication Methods
+
+Agents communicate through three channels:
+
+| Channel | Method | Use Case |
+|---------|--------|----------|
+| **Direct message** | `TeammateTool(write, to: "<name>", message: "...")` | Point-to-point coordination between specific agents |
+| **Broadcast** | `TeammateTool(broadcast, message: "...")` | Swarm-wide notifications (use sparingly) |
+| **Shared task list** | `TaskCreate` / `TaskUpdate` | Issue tracking with dependency management |
+
+### Message Catalog
+
+| Message | From | To | Meaning |
+|---------|------|----|---------|
+| `READY_FOR_CLOSURE #N <cert>` | issue-lifecycle | waves-controller | Issue implementation complete, all gates passed |
+| `BLOCKED #N <reason>` | issue-lifecycle | waves-controller | Issue cannot proceed, needs intervention |
+| `RUN_JOURNEY_TIER2 issues:[...]` | waves-controller | quality-gate | Run wave-scope journey tests |
+| `RUN_REGRESSION wave:<N>` | waves-controller | quality-gate | Run regression tests for the wave |
+| `MIGRATION_READY #N <file>` | issue-lifecycle | db-coordinator | Migration file created, needs conflict check |
+| `MIGRATION_APPROVED #N` | db-coordinator | issue-lifecycle | Migration cleared, no conflicts |
+| `FIX_REQUIRED #N <violation>` | quality-gate | issue-lifecycle | Contract violation needs fixing |
+
+### Team Lifecycle
+
+```
+1. SPAWN
+   waves-controller creates the team via TeammateTool(spawnTeam)
+   Each teammate receives: agent prompt + ISSUE_NUMBER + WAVE_NUMBER
+
+2. COORDINATE
+   Teammates work independently on assigned issues
+   Direct messages for cross-cutting concerns (DB conflicts, shared files)
+   db-coordinator manages migration number assignment
+   quality-gate monitors contract compliance
+
+3. REPORT
+   Each teammate sends READY_FOR_CLOSURE or BLOCKED when done
+   waves-controller collects all reports before proceeding to gates
+
+4. SHUTDOWN
+   waves-controller sends TeammateTool(requestShutdown)
+   Teammates finish current work and exit gracefully
+   Wave completion report generated
+```
+
+### Issue State Machine
+
+Issues transition through these states during execution:
+
+```
+pending -> active -> blocked -> active -> completed
+  |                    |                     |
+  |                    v                     v
+  |                 escalated             closed
+  v
+ skipped (dependency not met)
+```
+
+| State | Entry Condition | Exit Condition |
+|-------|-----------------|----------------|
+| **pending** | Issue assigned to a wave | Agent picks it up |
+| **active** | Agent starts implementation | Work completes or blocks |
+| **blocked** | Dependency unmet, test failure, or contract violation | Blocker resolved or issue escalated |
+| **completed** | All gates pass (contract, journey, regression) | Ticket-closer verifies and closes |
+| **escalated** | Max retries exhausted, unresolvable blocker | Human intervention required |
+| **skipped** | Dependency in a future wave or cancelled | Dependency resolved in next wave |
+
+### Escalation Paths
+
+| Situation | First Response | Escalation |
+|-----------|---------------|------------|
+| Contract violation | heal-loop attempts auto-fix (3 tries) | Report to waves-controller, mark blocked |
+| Build failure | Issue-lifecycle retries once | Report to waves-controller, mark blocked |
+| Migration conflict | db-coordinator reassigns numbers | Report to waves-controller, block both issues |
+| Journey test failure | Issue-lifecycle investigates | Report to waves-controller, mark blocked |
+| Teammate unresponsive | waves-controller pings twice | Terminate and respawn, or skip issue |

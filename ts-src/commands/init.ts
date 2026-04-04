@@ -182,7 +182,26 @@ async function doInit(
     steps.push('claude_md');
   }
 
-  // 5. Create .claude/settings.json with hook config
+  // 5. Copy Specflow skill for Claude Code
+  const skillsSrcDir = path.join(specflowRoot, 'templates', 'skills');
+  const skillsDest = path.join(target, '.claude', 'skills');
+  if (fs.existsSync(path.join(skillsSrcDir, 'specflow.md'))) {
+    ensureDir(skillsDest);
+    const skillSrc = path.join(skillsSrcDir, 'specflow.md');
+    const skillDst = path.join(skillsDest, 'specflow.md');
+    // Only overwrite if source is newer or dest doesn't exist
+    if (!fs.existsSync(skillDst) || fs.statSync(skillSrc).mtimeMs > fs.statSync(skillDst).mtimeMs) {
+      copyFile(skillSrc, skillDst);
+      if (!jsonOutput) {
+        console.log(`  ${green('+')} Installed Specflow skill for Claude Code`);
+      }
+    } else if (!jsonOutput) {
+      console.log(`  Specflow skill already up-to-date — skipped`);
+    }
+    steps.push('skill');
+  }
+
+  // 6. Create .claude/settings.json with hook config
   if (config.claudeHooks) {
     const settingsPath = path.join(target, '.claude', 'settings.json');
     if (!fs.existsSync(settingsPath)) {
@@ -195,19 +214,19 @@ async function doInit(
     steps.push('settings');
   }
 
-  // 6. Create .specflow/baseline.json
+  // 7. Create .specflow/baseline.json
   const baseline = path.join(target, '.specflow', 'baseline.json');
   if (!fs.existsSync(baseline)) {
     fs.writeFileSync(baseline, '{}\n');
   }
 
-  // 7. Create .claude/.defer-journal
+  // 8. Create .claude/.defer-journal
   const deferJournal = path.join(target, '.claude', '.defer-journal');
   if (!fs.existsSync(deferJournal)) {
     fs.writeFileSync(deferJournal, '');
   }
 
-  // 8. Install git commit-msg hook
+  // 9. Install git commit-msg hook
   if (config.gitHook) {
     const gitHooksDir = path.join(target, '.git', 'hooks');
     if (fs.existsSync(gitHooksDir)) {
