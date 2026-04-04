@@ -206,6 +206,114 @@ Meta files (`agentlist.md`, `agentnames.md`, `team-names.md`) are removed — th
 
 ---
 
+## Contract Context Injection
+
+When an agent's frontmatter includes a `contracts` field, the registry injects active contract rules into the agent's content at retrieval time. This ensures agents always work with current rules without manual synchronization.
+
+### Injection Protocol
+
+```
+AgentRegistry.get(name):
+  1. Load agent file, parse frontmatter
+  2. If agent.contracts is non-empty:
+     a. For each contract ID in agent.contracts:
+        i.  Load contract via ContractLoader (DDD-001)
+        ii. Extract: rule IDs, descriptions, patterns, severity, scope
+     b. Build "Active Contract Context" markdown section
+     c. Append to agent content (after the prompt body, before any closing notes)
+  3. Return agent with injected context
+```
+
+### Injection Format
+
+The injected section is appended as markdown so it's readable by both humans and LLMs:
+
+```markdown
+---
+
+## Active Contract Context
+
+Your output must comply with the following active contracts.
+
+### <contract_id>
+| Rule | Description | Severity | Scope |
+|------|-------------|----------|-------|
+| SEC-001 | No hardcoded secrets | error | src/**/*.{ts,tsx,js,jsx} |
+| SEC-002 | No SQL injection | error | src/**/*.{ts,tsx,js,jsx} |
+```
+
+### When to Use Contract Bindings
+
+| Agent Role | Contract Bindings | Reason |
+|------------|------------------|--------|
+| contract-generator | Full schema + extensions | Needs to know all valid fields and patterns |
+| heal-loop | security_defaults, auto_fix extensions | Needs to know what to fix and how |
+| specflow-writer | feature_specflow_project | Needs to know project structure rules |
+| code agents (general) | security_defaults | All generated code must pass security contracts |
+
+### Schema and Extension Injection
+
+For agents that need schema knowledge (contract-generator, heal-loop), the injection goes beyond rule lists to include:
+
+- **Field reference:** all YAML contract fields with types and descriptions
+- **Pattern syntax:** supported regex features, escape rules, common patterns
+- **Extension fields:** `severity`, `auto_fix`, `soft`, custom metadata
+- **Scope syntax:** glob pattern syntax for file targeting
+
+This is sourced from the same data that powers the `specflow_get_schema` MCP tool, ensuring consistency.
+
+---
+
+## Agent Knowledge Embedding
+
+Agents serve as carriers of domain knowledge, not just task prompts. This is a deliberate design decision (see [ADR-006](../adrs/ADR-006-knowledge-as-components.md)): knowledge that was previously stored in static documentation is embedded directly in the agents that use it.
+
+### Knowledge Types
+
+| Type | Description | Example |
+|------|-------------|---------|
+| **Procedural** | Step-by-step processes and protocols | TeammateTool protocol in waves-controller |
+| **Structural** | System models and state machines | Issue state machine in sprint-executor |
+| **Reference** | Schemas, field definitions, syntax | Contract schema in contract-generator |
+| **Strategic** | Decision frameworks and heuristics | Adoption strategy in adoption-advisor |
+
+### Embedding Locations
+
+Knowledge is embedded in two places within an agent file:
+
+1. **Frontmatter fields** — structured data used by the registry:
+   - `contracts`: contract IDs for rule injection
+   - `aliases`: team names and alternative identifiers (replaces team-names.md)
+   - `inputs`/`outputs`: what the agent needs and produces
+
+2. **Prompt body** — unstructured knowledge used by the LLM:
+   - Protocols and procedures (how to coordinate, what steps to follow)
+   - State machines and transitions (valid states, who can transition)
+   - Decision trees (when to escalate, when to retry, when to fail)
+
+### Agent Enrichment Map
+
+| Agent | Embedded Knowledge | Source |
+|-------|-------------------|--------|
+| waves-controller | TeammateTool protocol, issue state machine, team coordination | PROTOCOL.md, WORKFLOW.md, team-names.md |
+| sprint-executor | Execution sequence, failure handling, progress reporting | WORKFLOW.md |
+| contract-generator | Full YAML schema, extension fields, pattern syntax | CONTRACT-SCHEMA.md, CONTRACT-SCHEMA-EXTENSIONS.md |
+| heal-loop | auto_fix protocol, severity handling, remediation strategy | CONTRACT-SCHEMA-EXTENSIONS.md |
+| adoption-advisor | Phased rollout, team onboarding, escape hatches | MID-PROJECT-ADOPTION.md |
+| specflow-writer | Spec format rules, journey structure | SPEC-FORMAT.md |
+| journey-tester | Journey contract structure, CSV compilation | USER-JOURNEY-CONTRACTS.md |
+
+### Freshness Guarantee
+
+Unlike static docs, embedded knowledge stays current because:
+
+- Agent tests verify frontmatter validity (`specflow doctor`)
+- Contract injection pulls from the live contract engine, not cached copies
+- Agent prompts are versioned in git alongside the code they reference
+- Breaking changes to the contract engine or CLI will cause agent tests to fail
+
+---
+
 ## Testing Strategy
 
 ### Unit Tests

@@ -309,3 +309,115 @@ Phases 3 and 4 can run in parallel after Phase 2 completes.
 | MCP tools | 8 tools, all functional |
 | Package size (`npm pack`) | < 500KB (excluding node_modules) |
 | Root directory files | <= 8 (down from 20+) |
+
+---
+
+## Phase 8: Simulation Fixes (Blocking v1.0)
+
+**Duration:** 2-3 days
+**Objective:** Fix the 7 edge cases discovered during full user-journey simulation (2026-04-04). All are blocking v1.0 release.
+**Depends on:** Phase 2 (CLI Rewrite), Phase 3 (MCP Server)
+**Report:** [SIMULATION-REPORT.md](../SIMULATION-REPORT.md)
+
+### Tasks
+
+| # | Severity | Edge Case | File | Fix |
+|---|----------|-----------|------|-----|
+| 8.1 | CRITICAL | MCP `check_code` returns 0 rules | `ts-src/mcp/tools.ts` | `checkSnippet` must load contracts, compile patterns, scan code against ALL rules when no file path provided |
+| 8.2 | HIGH | `enforce --json` exits 0 on violations | `ts-src/commands/enforce.ts` | Set `process.exitCode = 1` when violations found, before output formatting |
+| 8.3 | HIGH | Compliance hook is a no-op | `ts-src/hooks/check-compliance.ts` | Hook must load contracts, scan file_path from stdin JSON, exit 2 on violations |
+| 8.4 | MEDIUM | SEC-003 scope too narrow | `templates/contracts/security_defaults.yml` | Expand scope from `src/**/*.{tsx,jsx}` to `src/**/*.{ts,tsx,js,jsx}` + `**/*.html` |
+| 8.5 | MEDIUM | Double init duplicates CLAUDE.md | `ts-src/commands/init.ts` | Use `<!-- specflow-rules-start -->` marker instead of heading-based detection |
+| 8.6 | MEDIUM | Custom testsDir double nesting | `ts-src/commands/init.ts` | Only create `/e2e` subdir if testsDir doesn't already end with `/e2e` |
+| 8.7 | LOW | Help text shows old package name | `ts-src/cli.ts` | Replace `@colmbyrne/specflow` with `specflow` / `npx specflow-cli` in help strings |
+
+### Updated Dependency Graph
+
+```
+Phase 1 (Clean)
+    ↓
+Phase 2 (CLI Rewrite)
+    ↓          ↓
+Phase 3      Phase 4
+(MCP)        (Install)
+    ↓          ↓
+Phase 5 (Agents)
+    ↓
+Phase 6 (Docs)
+    ↓
+Phase 7 (Rust Native Engine) ← if applicable
+    ↓
+Phase 8 (Simulation Fixes) ← BLOCKING v1.0
+    ↓
+v1.0 Release
+```
+
+### Exit Criteria
+
+- All 7 simulation edge cases have passing regression tests
+- `specflow enforce --json` exits 1 on violations
+- MCP `check_code` tool correctly detects violations in code snippets
+- Compliance hook blocks violating edits with exit 2
+- `specflow init .` is idempotent (second run produces no changes)
+- All 678+ tests pass
+
+---
+
+## Phase 9: Knowledge Embedding
+
+**Duration:** 3-4 days
+**Objective:** Convert the 20+ static documentation files removed during cleanup into living system components — skills, agents, MCP tools, and hooks — so knowledge is delivered at point of use instead of sitting in unread markdown files.
+**Depends on:** Phase 8 (Simulation Fixes), Phase 5 (Agent System), Phase 3 (MCP Server)
+
+### Background
+
+A gap analysis of the legacy cleanup (Phase 1) identified 20+ removed documentation files. Rather than restoring them as static docs, each piece of knowledge maps naturally to an existing system component that delivers it contextually.
+
+### Tasks
+
+| # | Source Knowledge | Becomes | Component |
+|---|-----------------|---------|-----------|
+| 9.1 | SKILL.md (core loop, gates, security, model routing, command ref) | Claude Code skill | `.claude/skills/specflow.md` — shipped in npm package, `specflow init` copies to user's `.claude/skills/`, loaded automatically by Claude Code |
+| 9.2 | CONTRACT-SCHEMA.md, CONTRACTS-README.md | MCP tool + agent context | `specflow_get_schema` MCP tool returns full YAML schema spec; schema injected into contract-generator agent's `contracts` field |
+| 9.3 | Pipeline compliance gaps | Hook enhancement | Enhance `check-compliance.ts`: orphan detection (test without contract, contract without test), uncompiled CSV detection |
+| 9.4 | PROTOCOL.md (TeammateTool), WORKFLOW.md (state machine), team-names.md | Agent prompt enrichment | Protocol → waves-controller body; workflow → waves-controller + sprint-executor; team names → agent frontmatter `aliases` field |
+| 9.5 | User guides (spec format, journeys, adoption) | Agents | Spec writing → specflow-writer agent (existing); journeys → journey-tester (existing); adoption strategy → new adoption-advisor agent |
+| 9.6 | CONTRACT-SCHEMA-EXTENSIONS.md (soft rules, auto_fix) | Agent context | Inject into contract-generator and heal-loop agent `contracts` fields |
+| 9.7 | Example contracts | MCP tool | `specflow_get_example` MCP tool returns annotated example contract on demand |
+
+### Exit Criteria
+
+- `.claude/skills/specflow.md` exists in package and is copied by `specflow init`
+- `specflow_get_schema` and `specflow_get_example` MCP tools return correct content
+- `adoption-advisor` agent exists with valid frontmatter
+- waves-controller, sprint-executor, contract-generator, and heal-loop agents enriched with embedded knowledge
+- `check-compliance.ts` hook detects orphan tests/contracts and uncompiled CSVs
+- All 678+ tests pass
+
+### Related Documents
+
+- [ADR-006: Knowledge as Components](../adrs/ADR-006-knowledge-as-components.md)
+- [PRD-005: Knowledge Embedding](../prds/PRD-005-knowledge-embedding.md)
+
+### Updated Dependency Graph
+
+```
+Phase 1 (Clean)
+    ↓
+Phase 2 (CLI Rewrite)
+    ↓          ↓
+Phase 3      Phase 4
+(MCP)        (Install)
+    ↓          ↓
+Phase 5 (Agents)
+    ↓
+Phase 6 (Docs)
+    ↓
+Phase 7 (Rust Native Engine) ← if applicable
+    ↓
+Phase 8 (Simulation Fixes) ← BLOCKING v1.0
+    ↓
+Phase 9 (Knowledge Embedding)
+    ↓
+v1.0 Release
+```

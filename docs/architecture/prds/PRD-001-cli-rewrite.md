@@ -230,3 +230,56 @@ src/
 - [ ] No bash script is executed by any CLI command
 - [ ] `--json` flag works on all commands that support it
 - [ ] Works on macOS, Linux, and WSL
+
+---
+
+## Simulation Findings (2026-04-04)
+
+The following issues were discovered during a full user-journey simulation of the CLI. Each must be resolved before v1.0 release.
+
+### SIM-CLI-001 (HIGH): `enforce --json` exits 0 on violations
+
+**File:** `ts-src/commands/enforce.ts`
+**Severity:** HIGH — CI pipelines using `specflow enforce --json` will silently pass despite violations.
+
+**Problem:** When the `--json` flag is used, `enforce` always exits with code 0, even when violations are found. The non-JSON code path correctly sets `process.exitCode = 1` on violations, but the JSON code path skips this.
+
+**Fix:** Set `process.exitCode = 1` when violations are found, regardless of output mode. The exit code must be determined by the scan result, not the output format. Apply the exit code assignment *before* the output format branch, not inside it.
+
+### SIM-CLI-002 (MEDIUM): Double `init` duplicates CLAUDE.md content
+
+**File:** `ts-src/commands/init.ts`
+**Severity:** MEDIUM — running `specflow init .` twice appends Specflow rules a second time.
+
+**Problem:** The idempotency check looks for the string `## Specflow Rules` in existing CLAUDE.md content. However, the template (`CLAUDE-MD-TEMPLATE.md`) contains this heading in multiple places, causing the marker detection to be unreliable. On a second init, content is appended again.
+
+**Fix:** Replace the heading-based marker with a unique HTML comment marker that won't appear naturally in user content:
+```
+<!-- specflow-rules-start -->
+...rules content...
+<!-- specflow-rules-end -->
+```
+Check for `<!-- specflow-rules-start -->` before appending. If found, replace the block between start/end markers instead of appending.
+
+### SIM-CLI-003 (MEDIUM): Custom `testsDir` causes double nesting
+
+**File:** `ts-src/commands/init.ts`
+**Severity:** MEDIUM — if a user sets `testsDir` to `tests/e2e`, init creates `tests/e2e/e2e/`.
+
+**Problem:** `init` unconditionally creates both `${testsDir}` and `${testsDir}/e2e`. If `testsDir` already ends with `/e2e`, this produces a redundant `tests/e2e/e2e` directory.
+
+**Fix:** Only create the `e2e` subdirectory if `testsDir` does not already end with `/e2e`:
+```typescript
+if (!testsDir.endsWith('/e2e') && !testsDir.endsWith('\\e2e')) {
+  mkdirSync(path.join(testsDir, 'e2e'), { recursive: true });
+}
+```
+
+### SIM-CLI-004 (LOW): Help text shows old package name
+
+**File:** `ts-src/cli.ts`
+**Severity:** LOW — cosmetic, but confusing for new users.
+
+**Problem:** Help examples still reference `npx @colmbyrne/specflow` instead of the current package name.
+
+**Fix:** Update all help text examples to use `specflow` (for global install) or `npx specflow-cli` (for npx usage). Search for all occurrences of `@colmbyrne/specflow` in CLI-facing strings.

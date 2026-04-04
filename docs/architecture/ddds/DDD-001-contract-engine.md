@@ -244,3 +244,54 @@ rules:
 - Any valid regex string compiles without error
 - Any violation from scanning has a non-empty file, line, and message
 - JSON output is always valid JSON
+
+---
+
+## Snippet Checking (Simulation Finding, 2026-04-04)
+
+### How `checkSnippet` Differs from `scanFiles`
+
+The `ContractScanner` exposes two scanning modes:
+
+| | `scanFile` / `scanDirectory` | `checkSnippet` |
+|---|---|---|
+| **Input** | File path(s) on disk | Code string in memory |
+| **Scope matching** | Rules are filtered by scope globs against file paths | No file path available (unless optional `filePath` param provided) |
+| **File I/O** | Reads files from disk | No file I/O — operates on the string directly |
+| **Use case** | CLI `enforce`, CI gates | MCP `check_code` tool, proactive checking before code is written |
+
+### Scope Matching Behavior for Snippets
+
+When `checkSnippet` is called **without** a `filePath` parameter, it must apply ALL rules from ALL contracts regardless of scope. This is the conservative approach: since we don't know where the code will be written, we check everything.
+
+When called **with** a `filePath`, scope filtering applies normally — only rules whose scope globs match the file path are checked.
+
+```
+checkSnippet(code, contracts)                → check ALL rules
+checkSnippet(code, contracts, "src/auth.ts") → check only rules scoped to src/auth.ts
+```
+
+**Current bug (CRITICAL):** `checkSnippet` returns `rules_checked: 0` and empty violations. The function is not loading/applying contract patterns. See PRD-002 simulation findings for full fix specification.
+
+### Scope Limitation Finding (Edge Case)
+
+**Contract:** `templates/contracts/security_defaults.yml` — Rule SEC-003 (innerHTML/XSS)
+**Severity:** MEDIUM
+
+SEC-003 scans only `src/**/*.{tsx,jsx}` for innerHTML usage. This means:
+- `.js` files using innerHTML → **not scanned**
+- `.ts` files using innerHTML → **not scanned**
+- `.html` files with inline scripts → **not scanned**
+
+The regex pattern itself is correct. The scope is too narrow.
+
+**Fix:** Expand SEC-003 scope to include all files where innerHTML could appear:
+```yaml
+scope:
+  - "src/**/*.{ts,tsx,js,jsx}"
+  - "**/*.html"
+  - "!node_modules/**"
+  - "!dist/**"
+```
+
+This is a contract template issue, not an engine issue. The engine respects whatever scope is defined — it's the default contract templates that need broader coverage.
