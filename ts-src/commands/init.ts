@@ -111,7 +111,10 @@ async function doInit(
   const steps: string[] = [];
 
   // 1. Create directory structure
-  const dirs = [config.contractsDir, config.testsDir, path.join(config.testsDir, 'e2e'), '.specflow', '.claude'];
+  const e2eDirs = (config.testsDir.endsWith('/e2e') || config.testsDir.endsWith('\\e2e'))
+    ? [config.contractsDir, config.testsDir, '.specflow', '.claude']
+    : [config.contractsDir, config.testsDir, path.join(config.testsDir, 'e2e'), '.specflow', '.claude'];
+  const dirs = e2eDirs;
   for (const dir of dirs) {
     const dirPath = path.join(target, dir);
     const created = ensureDir(dirPath);
@@ -150,24 +153,27 @@ async function doInit(
   // 4. Generate or append to CLAUDE.md
   if (appendClaudeMd) {
     const claudeMd = path.join(target, 'CLAUDE.md');
-    const specflowMarker = '## Specflow Rules';
+    const specflowMarker = '<!-- specflow-init -->';
+    const specflowMarkerEnd = '<!-- /specflow-init -->';
     if (fs.existsSync(claudeMd)) {
       const existing = fs.readFileSync(claudeMd, 'utf-8');
       if (!existing.includes(specflowMarker)) {
         const templatePath = path.join(specflowRoot, 'CLAUDE-MD-TEMPLATE.md');
         if (fs.existsSync(templatePath)) {
           const templateContent = fs.readFileSync(templatePath, 'utf-8');
-          fs.appendFileSync(claudeMd, `\n\n${specflowMarker}\n\n${templateContent}\n`);
+          fs.appendFileSync(claudeMd, `\n\n${specflowMarker}\n## Specflow Rules\n\n${templateContent}\n${specflowMarkerEnd}\n`);
           if (!jsonOutput) {
             console.log(`  ${green('+')} Appended Specflow rules to existing CLAUDE.md`);
           }
         }
+      } else if (!jsonOutput) {
+        console.log(`  Specflow rules already present in CLAUDE.md — skipped`);
       }
     } else {
       const templatePath = path.join(specflowRoot, 'CLAUDE-MD-TEMPLATE.md');
       if (fs.existsSync(templatePath)) {
         const templateContent = fs.readFileSync(templatePath, 'utf-8');
-        fs.writeFileSync(claudeMd, `# CLAUDE.md\n\n${specflowMarker}\n\n${templateContent}\n`);
+        fs.writeFileSync(claudeMd, `# CLAUDE.md\n\n${specflowMarker}\n## Specflow Rules\n\n${templateContent}\n${specflowMarkerEnd}\n`);
         if (!jsonOutput) {
           console.log(`  ${green('+')} Generated CLAUDE.md with Specflow rules`);
         }

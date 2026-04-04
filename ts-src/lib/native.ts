@@ -295,11 +295,19 @@ function checkSnippetJs(
 
   for (const contract of contracts) {
     for (const rule of contract.rules) {
-      const inScope = rule.scope.length === 0 || rule.scope.some(s => {
+      // Skip scope check when no file path is provided (inline snippet checking)
+      const skipScope = !filePath;
+      const inScope = skipScope || rule.scope.length === 0 || rule.scope.some(s => {
         if (s.startsWith('!')) return false;
-        return new RegExp(
-          '^' + s.replace(/\*\*/g, '.*').replace(/\*/g, '[^/]*').replace(/\?/g, '.') + '$'
-        ).test(virtualPath);
+        // Convert glob to regex: handle {a,b}, escape dots, glob ? before **/
+        const regexStr = s
+          .replace(/\{([^}]+)\}/g, (_, alts: string) => `(${alts.split(',').join('|')})`)
+          .replace(/\./g, '\\.')
+          .replace(/\?/g, '.')
+          .replace(/\*\*\//g, '(.+/)?')
+          .replace(/\*\*/g, '.*')
+          .replace(/\*/g, '[^/]*');
+        return new RegExp('^' + regexStr + '$').test(virtualPath);
       });
 
       if (!inScope) continue;

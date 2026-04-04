@@ -45,7 +45,7 @@ rules:
     - id: SEC-002
       title: "No raw SQL string concatenation"
       scope:
-        - "src/**/*.{ts,js}"
+        - "src/**/*.{ts,tsx,js,jsx}"
         - "!src/**/*.test.*"
         - "!src/**/__tests__/**"
       behavior:
@@ -64,7 +64,7 @@ rules:
     - id: SEC-003
       title: "No innerHTML with unsanitized dynamic content"
       scope:
-        - "src/**/*.{tsx,jsx}"
+        - "src/**/*.{ts,tsx,js,jsx,html}"
       behavior:
         forbidden_patterns:
           - pattern: /dangerouslySetInnerHTML\s*=\s*\{\s*\{\s*__html:(?!\s*(sanitize|DOMPurify|purify))/
@@ -96,7 +96,7 @@ rules:
     - id: SEC-005
       title: "No path traversal in file operations"
       scope:
-        - "src/**/*.{ts,js}"
+        - "src/**/*.{ts,tsx,js,jsx}"
         - "!src/**/*.test.*"
       behavior:
         forbidden_patterns:
