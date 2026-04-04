@@ -269,3 +269,43 @@ specflow mcp unregister
 - [ ] Server exits cleanly when stdin closes
 - [ ] All output goes to stderr (stdout is protocol-only)
 - [ ] Works with Claude Code's MCP protocol version
+
+---
+
+## Simulation Findings (2026-04-04)
+
+### SIM-MCP-001 (CRITICAL): `check_code` tool returns 0 rules checked
+
+**File:** `ts-src/mcp/tools.ts` — `handleCheckCode` function
+**Severity:** CRITICAL — This is the most dangerous bug in the system. The MCP tool that should prevent contract violations is non-functional.
+
+**Problem:** The `specflow_check_code` MCP tool calls `checkSnippet()` but always returns `rules_checked: 0` and `clean: true`, regardless of the code content. The `checkSnippet` function is not loading contracts, not compiling patterns, and returning empty violation arrays.
+
+This means Claude Code, when using the MCP server for proactive contract checking, believes all code is clean. The entire proactive enforcement layer (the "guardrail" described in this PRD's Problem Statement) is silently disabled.
+
+**Expected behavior:** `checkSnippet("const password = 'hunter2'", contracts)` should return a SEC-001 violation.
+
+**Actual behavior:** Returns `{ clean: true, violations: [], rules_checked: 0 }`.
+
+**Root cause:** `checkSnippet` must:
+1. Load all contracts from the project's contract directory
+2. Compile all regex patterns
+3. Scan the provided code string against ALL rules
+4. Since snippet checking has no file path for scope matching, all rules should apply (or use the optional `file_path` parameter for scope filtering when provided)
+
+**Fix specification:**
+```
+checkSnippet(code: string, contracts: Contract[], filePath?: string) → Violation[]
+
+1. If filePath is provided:
+   - Filter rules to those whose scope matches filePath
+2. If filePath is NOT provided:
+   - Apply ALL rules regardless of scope (conservative: check everything)
+3. For each applicable rule:
+   - Run all forbidden_patterns against the code string
+   - Run all required_patterns against the code string
+   - Generate Violations for any matches/misses
+4. Return the full violation list
+```
+
+**Impact if not fixed:** Every Claude Code user with the MCP server registered gets zero contract enforcement during proactive checks. Violations are only caught reactively by hooks (which also have issues — see DDD-002 simulation findings).

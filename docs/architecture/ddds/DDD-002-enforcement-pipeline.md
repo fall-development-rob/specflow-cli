@@ -207,3 +207,49 @@ OPEN (issue created)
 ```
 
 Each gate is independent. Skipping one doesn't bypass others. The pipeline is defense-in-depth.
+
+---
+
+## Simulation Findings (2026-04-04)
+
+### SIM-ENF-001 (HIGH): Compliance Hook Is a No-Op
+
+**File:** `ts-src/hooks/check-compliance.ts`
+**Severity:** HIGH — The Edit Check layer of the enforcement pipeline is completely non-functional.
+
+**Problem:** The `check-compliance.ts` hook exits 0 regardless of what code was written. It reads the stdin JSON from Claude Code's PostToolUse event but does not actually run the contract scanner against the file content. When Claude Code writes violating code via Write or Edit tools, the hook passes silently.
+
+The "Edit-Time Enforcement" section above describes the intended behavior (steps 3a-3f). The current implementation only performs step 3a (read stdin JSON) and then exits 0.
+
+**What the hook MUST do:**
+
+```
+1. Read stdin JSON → extract tool_input.file_path
+2. If file_path is undefined or tool_name is not Write|Edit → exit 0
+3. Load all contracts from .specflow/contracts/ (or docs/contracts/)
+4. Filter to rules whose scope matches file_path
+5. Read the file content from disk (it was just written)
+6. Scan file content against matching rules using ContractScanner
+7. If violations found:
+   a. Format violation messages to stderr
+   b. Exit 2 (tells Claude Code to show error to model)
+8. If clean: exit 0
+```
+
+**Impact if not fixed:** The fastest feedback loop in the pipeline (edit-time checking) is disabled. Violations are only caught at commit time (if journey tests cover them) or in CI. This defeats the "defense in depth" principle — the middle layer is missing.
+
+### SIM-ENF-002 (HIGH): Exit Code Contract for `enforce`
+
+**Affected file:** `ts-src/commands/enforce.ts`
+
+**Exit code contract (must hold for ALL output modes):**
+
+| Condition | Exit Code |
+|-----------|-----------|
+| No violations found | 0 |
+| Violations found | 1 |
+| Script/runtime error | 1 |
+
+The `--json` flag controls output **format**, not exit **behavior**. Currently, `--json` mode always exits 0. This breaks CI pipelines that use `specflow enforce --json` to get machine-readable output while still gating on violations.
+
+**Fix:** Determine exit code from scan results BEFORE formatting output. Apply `process.exitCode = 1` when violations exist, then format output in the requested mode. The exit code and the output format are independent concerns.

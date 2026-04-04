@@ -101,3 +101,28 @@ Two bin entries: `specflow` for CLI, `specflow-mcp` for MCP server. This is clea
 - Must maintain our own arg parser and help text
 - Mode detection based on TTY can be wrong in edge cases (piped CLI usage)
   - Mitigation: explicit `specflow mcp start` command bypasses TTY detection
+
+---
+
+## Addendum: Exit Code Policy (Simulation Finding, 2026-04-04)
+
+### Decision
+
+**Output format flags (`--json`, `--quiet`, etc.) must NEVER alter exit code behavior.**
+
+Exit codes are part of the command's contract with the caller (CI systems, shell scripts, hooks). The `--json` flag changes how results are *displayed*, not what the results *are*.
+
+### Exit Code Standard for All Enforcement Commands
+
+| Command / Hook | Success | Violations Found | Script Error |
+|---|---|---|---|
+| `specflow enforce` | 0 | 1 | 1 |
+| `specflow enforce --json` | 0 | 1 | 1 |
+| `check-compliance.ts` hook | 0 | 2 | 1 |
+| `post-build-check.ts` hook | 0 | 2 | 1 |
+
+**Note:** Hooks use exit code 2 (not 1) per the Claude Code hook protocol, where exit 2 means "enforcement failure — show error to model."
+
+### Rationale
+
+This was discovered via simulation: `specflow enforce --json` was exiting 0 even when violations were found (`ts-src/commands/enforce.ts`). CI pipelines using JSON output for machine-readable results were silently passing despite contract violations. The fix is to separate exit code determination from output formatting — determine the exit code from scan results first, then format output in the requested mode.
