@@ -113,6 +113,34 @@ export function toolDefinitions(): ToolDefinition[] {
         required: ['journey_id', 'reason', 'action'],
       },
     },
+    {
+      name: 'specflow_get_schema',
+      description: 'Returns the complete YAML contract schema specification as structured JSON',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          section: {
+            type: 'string',
+            enum: ['full', 'fields', 'patterns', 'examples'],
+            description: 'Schema section to return (defaults to full)',
+          },
+        },
+      },
+    },
+    {
+      name: 'specflow_get_example',
+      description: 'Returns an annotated example contract YAML for a given type',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          type: {
+            type: 'string',
+            enum: ['security', 'accessibility', 'feature', 'journey'],
+            description: 'Type of example contract (defaults to security)',
+          },
+        },
+      },
+    },
   ];
 }
 
@@ -128,6 +156,8 @@ export function callTool(name: string, args: any): ToolCallResult {
     case 'specflow_list_agents': return handleListAgents(args);
     case 'specflow_get_agent': return handleGetAgent(args);
     case 'specflow_defer_journey': return handleDeferJourney(args);
+    case 'specflow_get_schema': return handleGetSchema(args);
+    case 'specflow_get_example': return handleGetExample(args);
     default: return toolResultError(`Unknown tool: ${name}`);
   }
 }
@@ -391,6 +421,363 @@ function handleDeferJourney(args: any): ToolCallResult {
     }
     return toolResultText(JSON.stringify({ deferred: false, journey_id: journeyId, note: 'was not deferred' }, null, 2));
   }
+}
+
+function handleGetSchema(args: any): ToolCallResult {
+  const section = args.section || 'full';
+
+  const fields = {
+    contract_meta: {
+      id: { type: 'string', required: true, description: 'Unique contract identifier (e.g. feature_auth, security_defaults)' },
+      version: { type: 'integer', required: true, description: 'Schema version, increment on changes' },
+      created_from_spec: { type: 'string', required: false, description: 'Source reference (issue number, spec doc)' },
+      covers_reqs: { type: 'string[]', required: false, description: 'Requirement IDs this contract covers' },
+      owner: { type: 'string', required: false, description: 'Team or person responsible' },
+    },
+    llm_policy: {
+      enforce: { type: 'boolean', required: true, description: 'Whether this contract is actively enforced' },
+      llm_may_modify_non_negotiables: { type: 'boolean', required: true, description: 'If false, LLM cannot override non-negotiable rules' },
+      override_phrase: { type: 'string', required: true, description: 'Human command to override (e.g. override_contract: <id>)' },
+    },
+    rules: {
+      non_negotiable: {
+        type: 'array',
+        required: true,
+        description: 'Rules that must always pass — violations fail the build',
+        item_fields: {
+          id: { type: 'string', required: true, description: 'Rule ID (e.g. SEC-001, ARCH-002)' },
+          title: { type: 'string', required: true, description: 'Human-readable rule description' },
+          scope: { type: 'string[]', required: true, description: 'Glob patterns for files to check (supports ! negation)' },
+          behavior: {
+            type: 'object',
+            required: true,
+            fields: {
+              forbidden_patterns: { type: 'array', required: false, description: 'Patterns that must NOT match (violations)' },
+              required_patterns: { type: 'array', required: false, description: 'Patterns that MUST match (missing = violation)' },
+              example_violation: { type: 'string', required: false, description: 'Code example that would fail this rule' },
+              example_compliant: { type: 'string', required: false, description: 'Code example that would pass this rule' },
+            },
+          },
+          auto_fix: {
+            type: 'object',
+            required: false,
+            description: 'Optional fix hints for heal-loop agent',
+            fields: {
+              strategy: { type: 'string', enum: ['add_import', 'remove_pattern', 'wrap_with', 'replace_with'], description: 'Fix strategy to apply' },
+            },
+          },
+        },
+      },
+      soft: {
+        type: 'array',
+        required: false,
+        description: 'Advisory rules — warnings, not build failures',
+        item_fields: {
+          id: { type: 'string', required: true, description: 'Rule ID' },
+          title: { type: 'string', required: true, description: 'Human-readable description' },
+          suggestion: { type: 'string', required: true, description: 'What to do about it' },
+          llm_may_bend_if: { type: 'string[]', required: false, description: 'Conditions where bending is acceptable' },
+        },
+      },
+    },
+    compliance_checklist: {
+      before_editing_files: {
+        type: 'array',
+        required: false,
+        description: 'Pre-edit checklist questions',
+        item_fields: {
+          question: { type: 'string', required: true },
+          if_yes: { type: 'string', required: true },
+        },
+      },
+    },
+    test_hooks: {
+      tests: {
+        type: 'array',
+        required: false,
+        description: 'Test files that verify this contract',
+        item_fields: {
+          file: { type: 'string', required: true },
+          description: { type: 'string', required: false },
+        },
+      },
+    },
+    pattern_format: {
+      syntax: '/regex/flags',
+      supported_flags: ['i (case-insensitive)', 'g (global)', 'm (multiline)'],
+      examples: [
+        { pattern: '/localStorage/', matches: 'Any use of localStorage' },
+        { pattern: '/supabase\\.(from|rpc)/', matches: 'Direct Supabase calls' },
+        { pattern: '/(password|secret)\\s*[:=]\\s*[\'"][^\'"]{8,}[\'"]/i', matches: 'Hardcoded secrets' },
+      ],
+    },
+    scope_format: {
+      syntax: 'glob patterns',
+      examples: [
+        { pattern: 'src/**/*.ts', matches: 'All TypeScript files under src/' },
+        { pattern: 'src/**/*.{ts,tsx}', matches: 'TypeScript and TSX files' },
+        { pattern: '!src/**/*.test.*', matches: 'Exclude test files (negation)' },
+      ],
+    },
+  };
+
+  if (section === 'fields') {
+    const { pattern_format, scope_format, ...fieldDefs } = fields;
+    return toolResultText(JSON.stringify(fieldDefs, null, 2));
+  }
+  if (section === 'patterns') {
+    return toolResultText(JSON.stringify({ pattern_format: fields.pattern_format, scope_format: fields.scope_format }, null, 2));
+  }
+  if (section === 'examples') {
+    return handleGetExample({ type: 'security' });
+  }
+  return toolResultText(JSON.stringify(fields, null, 2));
+}
+
+function handleGetExample(args: any): ToolCallResult {
+  const exampleType = args.type || 'security';
+
+  const examples: Record<string, string> = {
+    security: `# Security contract — OWASP-aligned baseline patterns
+# Every field is annotated with its purpose
+
+contract_meta:
+  id: security_defaults                   # Unique identifier for this contract
+  version: 1                              # Increment when rules change
+  created_from_spec: "OWASP Top 10"       # Where the rules come from
+  covers_reqs:                            # Requirement IDs covered
+    - SEC-001
+    - SEC-002
+  owner: "security-team"                  # Who maintains this contract
+
+llm_policy:
+  enforce: true                           # Active enforcement (false = disabled)
+  llm_may_modify_non_negotiables: false   # LLM cannot override these rules
+  override_phrase: "override_contract: security_defaults"  # Human override command
+
+rules:
+  non_negotiable:                         # These MUST pass — violations fail the build
+    - id: SEC-001                         # Rule identifier
+      title: "No hardcoded secrets"       # Human-readable description
+      scope:                              # Which files to check (glob patterns)
+        - "src/**/*.{ts,js,tsx,jsx}"      # All source files
+        - "!src/**/*.test.*"              # Except test files
+      behavior:
+        forbidden_patterns:               # Patterns that must NOT appear
+          - pattern: /(password|secret|api_key)\\s*[:=]\\s*['"][^'"]{8,}['"]/i
+            message: "Hardcoded secret detected — use environment variable"
+        example_violation: |              # Code that would FAIL this rule
+          const API_KEY = "sk_live_abc123def456"
+        example_compliant: |              # Code that would PASS this rule
+          const API_KEY = process.env.API_KEY
+
+    - id: SEC-002
+      title: "No SQL string concatenation"
+      scope:
+        - "src/**/*.{ts,tsx,js,jsx}"
+      behavior:
+        forbidden_patterns:
+          - pattern: /query\\s*\\(\\s*['\`].*\\$\\{/
+            message: "SQL injection risk — use parameterized queries"
+        example_violation: |
+          db.query(\`SELECT * FROM users WHERE id = '\${userId}'\`)
+        example_compliant: |
+          db.query('SELECT * FROM users WHERE id = $1', [userId])
+
+compliance_checklist:                     # Pre-edit reminders
+  before_editing_files:
+    - question: "Are you handling user-provided values in queries?"
+      if_yes: "Use parameterized queries, never string concatenation"
+
+test_hooks:                               # Associated test files
+  tests:
+    - file: "src/__tests__/contracts/security_defaults.test.ts"
+      description: "Pattern checks for SEC-001 and SEC-002"`,
+
+    accessibility: `# Accessibility contract — WCAG AA baseline patterns
+
+contract_meta:
+  id: accessibility_defaults
+  version: 1
+  created_from_spec: "WCAG 2.1 AA"
+  covers_reqs:
+    - A11Y-001
+    - A11Y-002
+  owner: "specflow-defaults"
+
+llm_policy:
+  enforce: true
+  llm_may_modify_non_negotiables: false
+  override_phrase: "override_contract: accessibility_defaults"
+
+rules:
+  non_negotiable:
+    - id: A11Y-001
+      title: "Images must have alt text"
+      scope:
+        - "src/**/*.{tsx,jsx}"            # Only JSX/TSX files have images
+      behavior:
+        forbidden_patterns:
+          - pattern: /<img\\s+(?![^>]*\\balt\\s*=)[^>]*\\/?>/
+            message: "Image missing alt attribute — add alt text for screen readers"
+        example_violation: |
+          <img src="/avatar.png" />
+        example_compliant: |
+          <img src="/avatar.png" alt="User avatar" />
+
+    - id: A11Y-002
+      title: "Buttons must have accessible labels"
+      scope:
+        - "src/**/*.{tsx,jsx}"
+      behavior:
+        forbidden_patterns:
+          - pattern: /<button(?![^>]*aria-label)[^>]*>\\s*<(?:svg|img)[^>]*\\/?>\\s*<\\/button>/
+            message: "Icon-only button needs aria-label for screen readers"
+        example_violation: |
+          <button><TrashIcon /></button>
+        example_compliant: |
+          <button aria-label="Delete item"><TrashIcon /></button>
+
+  soft:                                   # Advisory rules — warnings only
+    - id: A11Y-010
+      title: "Interactive elements should have focus-visible styles"
+      suggestion: "Add :focus-visible styles for keyboard navigation"
+      llm_may_bend_if:
+        - "Component library provides focus styles"`,
+
+    feature: `# Feature contract — project-specific architectural rules
+
+contract_meta:
+  id: feature_user_auth                   # Name matches the feature area
+  version: 1
+  created_from_spec: "GitHub issue #42"   # Link to the source spec
+  covers_reqs:
+    - AUTH-001
+    - AUTH-002
+  owner: "auth-team"
+
+llm_policy:
+  enforce: true
+  llm_may_modify_non_negotiables: false
+  override_phrase: "override_contract: feature_user_auth"
+
+rules:
+  non_negotiable:
+    - id: AUTH-001
+      title: "All API routes require authentication middleware"
+      scope:
+        - "src/routes/**/*.ts"            # Only route files
+      behavior:
+        required_patterns:                # Patterns that MUST be present
+          - pattern: /authMiddleware/
+            message: "Must import and use authMiddleware"
+        example_violation: |
+          router.get('/api/users', async (req, res) => { ... })
+        example_compliant: |
+          router.get('/api/users', authMiddleware, async (req, res) => { ... })
+      auto_fix:                           # Enables heal-loop agent
+        strategy: "wrap_with"             # Wrap route handler with middleware
+        wrapper: "authMiddleware"
+
+    - id: AUTH-002
+      title: "Tokens must not be stored in localStorage"
+      scope:
+        - "src/**/*.{ts,tsx}"
+        - "!src/**/*.test.*"
+      behavior:
+        forbidden_patterns:
+          - pattern: /localStorage\\.setItem\\s*\\(\\s*['"].*token/i
+            message: "Store tokens in httpOnly cookies, not localStorage"
+      auto_fix:
+        strategy: "replace_with"
+        find: "localStorage.setItem"
+        replace: "cookieStore.set"
+
+compliance_checklist:
+  before_editing_files:
+    - question: "Adding a new API route?"
+      if_yes: "Include authMiddleware as the second argument"
+    - question: "Storing authentication tokens?"
+      if_yes: "Use httpOnly cookies via the auth service"
+
+test_hooks:
+  tests:
+    - file: "src/__tests__/contracts/auth.test.ts"
+      description: "Pattern checks for AUTH-001 and AUTH-002"`,
+
+    journey: `# Journey contract — end-to-end user flow verification
+
+journey_meta:
+  id: J-USER-LOGIN                        # Journey ID (J- prefix required)
+  from_spec: "GitHub issue #42"
+  covers_reqs:
+    - AUTH-001
+    - AUTH-003
+  type: "e2e"                             # Journey type
+  dod_criticality: critical               # critical | important | future
+  status: not_tested                      # not_tested | passing | failing
+  last_verified: null                     # ISO timestamp of last run
+
+preconditions:                            # Setup before the journey
+  - description: "Test user exists in database"
+    setup_hint: "await seedUser(supabase, { email: 'test@example.com' })"
+  - description: "User is on the login page"
+    setup_hint: "await page.goto('/login')"
+
+steps:                                    # Sequential journey steps
+  - step: 1
+    name: "Enter email address"
+    required_elements:                    # UI elements that must exist
+      - selector: "[data-testid='email-input']"
+    actions:
+      - type: "fill"
+        selector: "[data-testid='email-input']"
+        value: "test@example.com"
+    expected:
+      - type: "element_visible"
+        selector: "[data-testid='email-input']"
+
+  - step: 2
+    name: "Enter password"
+    required_elements:
+      - selector: "[data-testid='password-input']"
+    actions:
+      - type: "fill"
+        selector: "[data-testid='password-input']"
+        value: "SecurePass123!"
+
+  - step: 3
+    name: "Submit login form"
+    required_elements:
+      - selector: "[data-testid='login-submit']"
+    actions:
+      - type: "click"
+        selector: "[data-testid='login-submit']"
+    expected:
+      - type: "navigation"
+        path_contains: "/dashboard"       # Should redirect after login
+      - type: "api_call"
+        method: "POST"
+        path: "/auth/v1/token"
+
+  - step: 4
+    name: "Dashboard loads with user info"
+    expected:
+      - type: "element_visible"
+        selector: "[data-testid='user-greeting']"
+      - type: "element_not_visible"
+        selector: "[data-testid='login-form']"
+
+test_hooks:
+  e2e_test_file: "tests/e2e/journeys/user-login.journey.spec.ts"`,
+  };
+
+  const example = examples[exampleType];
+  if (!example) {
+    return toolResultError(`Unknown example type: ${exampleType}. Valid types: security, accessibility, feature, journey`);
+  }
+
+  return toolResultText(example);
 }
 
 function getAgentList(agentsDir: string, category?: string): any[] {

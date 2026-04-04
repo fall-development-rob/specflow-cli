@@ -129,27 +129,27 @@ Partially adopted via `specflow agent show` and MCP tools, but not sufficient fo
 
 ---
 
-## AgentDB as Storage and Query Layer
+## sql.js as Storage and Query Layer
 
-[ADR-007](ADR-007-agentdb-knowledge-graph.md) introduces AgentDB as the persistent storage and query layer that powers the component approach described above. The relationship:
+[ADR-007 (Amended)](ADR-007-agentdb-knowledge-graph.md) introduces sql.js (WASM SQLite) as the persistent storage and query layer that powers the component approach described above. The relationship:
 
 - **ADR-006** defines *what* knowledge is embedded and *where* it goes (skills, agents, MCP tools, hooks)
-- **ADR-007** defines *how* that knowledge becomes persistent, queryable, and learning
+- **ADR-007** defines *how* that knowledge becomes persistent and queryable, stored in `.specflow/knowledge.db`
 
-### How AgentDB Powers Each Component
+### How sql.js Powers Each Component
 
 | Component | ADR-006 Delivery | ADR-007 Storage/Query Layer |
 |-----------|-----------------|---------------------------|
-| Skills | `.claude/skills/specflow.md` — static operating loop | AgentDB skill library — learned fix patterns with confidence scores |
+| Skills | `.claude/skills/specflow.md` — static operating loop | SQL-backed skill library — learned fix patterns with confidence scores |
 | Agent context | Contract bindings in frontmatter | Agent nodes in graph with performance metrics and fix history |
-| MCP tools | `specflow_get_schema`, `specflow_get_example` | `specflow_query_graph`, `specflow_get_fix_suggestion`, `specflow_get_impact` |
+| MCP tools | `specflow_get_schema`, `specflow_get_example` | `specflow_query_graph` (SQL), `specflow_get_fix_suggestion`, `specflow_get_impact` |
 | Hooks | `check-compliance.ts` — real-time scanning | Violations recorded in graph; fix suggestions included in hook output |
 
 ### Key Integration Points
 
-- **Skills** live in the AgentDB skill library as Skill nodes, discovered automatically from fix patterns
+- **Skills** live in the knowledge graph as Skill nodes (rows in the `nodes` table), discovered automatically from fix patterns via SQL aggregation
 - **Agent knowledge** is represented as graph nodes — agents, contracts, rules, and the edges between them
-- **MCP tools** query the graph using Cypher, exposing the full knowledge graph to Claude Code
+- **MCP tools** query the graph using SQL, exposing the full knowledge graph to Claude Code
 - **Hook enforcement** records violations in real-time and queries the skill library for fix suggestions
 
-The static components (skill file, agent prompts, schema tools) provide the framework. AgentDB adds the learning layer — turning one-shot knowledge delivery into a system that improves with use.
+The static components (skill file, agent prompts, schema tools) provide the framework. The sql.js-backed knowledge graph adds the persistence layer — turning one-shot knowledge delivery into a system that tracks history and suggests fixes. Self-learning features (RL, GNN attention) are deferred to a future AgentDB migration when it reaches stable release.
