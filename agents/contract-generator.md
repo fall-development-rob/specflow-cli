@@ -408,3 +408,135 @@ contract-test-generator (creates Jest tests)
        ↓
 npm test -- contracts (runs at build time)
 ```
+
+---
+
+## Complete Contract YAML Schema Reference
+
+### Top-Level Fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `contract_meta` | object | Yes | Contract identification and ownership |
+| `contract_meta.id` | string | Yes | Unique identifier (e.g. `feature_auth`, `security_defaults`) |
+| `contract_meta.version` | integer | Yes | Schema version — increment on any rule change |
+| `contract_meta.created_from_spec` | string | No | Source reference (issue number, spec doc, OWASP, etc.) |
+| `contract_meta.covers_reqs` | string[] | No | Requirement IDs this contract covers (e.g. `SEC-001`, `ARCH-002`) |
+| `contract_meta.owner` | string | No | Team or person responsible for maintaining this contract |
+| `llm_policy` | object | Yes | LLM enforcement behavior |
+| `llm_policy.enforce` | boolean | Yes | `true` = active enforcement, `false` = disabled |
+| `llm_policy.llm_may_modify_non_negotiables` | boolean | Yes | `false` = LLM cannot override rules |
+| `llm_policy.override_phrase` | string | Yes | Human override command (e.g. `override_contract: <id>`) |
+| `rules` | object | Yes | Rule definitions |
+| `rules.non_negotiable` | array | Yes | Hard rules — violations fail the build |
+| `rules.soft` | array | No | Advisory rules — warnings only |
+| `compliance_checklist` | object | No | Pre-edit reminders for developers |
+| `test_hooks` | object | No | Associated test files |
+
+### Rule Fields (non_negotiable)
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `id` | string | Yes | Rule identifier (e.g. `SEC-001`) |
+| `title` | string | Yes | Human-readable description |
+| `scope` | string[] | Yes | Glob patterns for files to check |
+| `behavior` | object | Yes | Pattern definitions |
+| `behavior.forbidden_patterns` | array | No | Patterns that must NOT appear in scoped files |
+| `behavior.forbidden_patterns[].pattern` | string | Yes | Regex in `/pattern/flags` format |
+| `behavior.forbidden_patterns[].message` | string | Yes | Error message when pattern matches |
+| `behavior.required_patterns` | array | No | Patterns that MUST appear in scoped files |
+| `behavior.required_patterns[].pattern` | string | Yes | Regex in `/pattern/flags` format |
+| `behavior.required_patterns[].message` | string | Yes | Error message when pattern is missing |
+| `behavior.example_violation` | string | No | Code that would FAIL this rule |
+| `behavior.example_compliant` | string | No | Code that would PASS this rule |
+| `auto_fix` | object | No | Fix hints for the heal-loop agent |
+| `auto_fix.strategy` | string | Yes (if auto_fix) | One of: `add_import`, `remove_pattern`, `wrap_with`, `replace_with` |
+
+### Rule Fields (soft)
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `id` | string | Yes | Rule identifier |
+| `title` | string | Yes | Human-readable description |
+| `suggestion` | string | Yes | What the developer should consider doing |
+| `llm_may_bend_if` | string[] | No | Conditions where bending is acceptable |
+
+### Journey Contract Fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `journey_meta.id` | string | Yes | Journey ID with `J-` prefix (e.g. `J-USER-LOGIN`) |
+| `journey_meta.from_spec` | string | No | Source spec reference |
+| `journey_meta.covers_reqs` | string[] | No | Requirements covered |
+| `journey_meta.type` | string | Yes | Always `"e2e"` |
+| `journey_meta.dod_criticality` | string | Yes | `critical`, `important`, or `future` |
+| `journey_meta.status` | string | Yes | `not_tested`, `passing`, or `failing` |
+| `journey_meta.last_verified` | string/null | Yes | ISO timestamp or null |
+| `preconditions` | array | No | Setup steps before the journey |
+| `steps` | array | Yes | Sequential journey steps |
+| `steps[].step` | integer | Yes | Step number |
+| `steps[].name` | string | Yes | Step description |
+| `steps[].required_elements` | array | No | UI selectors that must exist |
+| `steps[].actions` | array | No | User actions (fill, click, etc.) |
+| `steps[].expected` | array | No | Expected outcomes (navigation, API calls, element visibility) |
+| `test_hooks.e2e_test_file` | string | No | Path to the Playwright test file |
+
+### Pattern Format Reference
+
+Patterns use JavaScript regex syntax in `/pattern/flags` format:
+
+| Pattern | Matches | Notes |
+|---------|---------|-------|
+| `/localStorage/` | Any use of `localStorage` | Simple string match |
+| `/supabase\.(from\|rpc)/` | Direct Supabase calls | Pipe needs escaping in YAML |
+| `/(password\|secret)\s*[:=]\s*['"][^'"]{8,}['"]/i` | Hardcoded secrets | Case-insensitive flag |
+| `/eval\s*\(/` | `eval()` calls | Matches `eval(` with optional whitespace |
+| `/\bclass\s+\w+\s+extends\s+Component\b/` | Class components | Word boundaries prevent partial matches |
+| `/(?:import|require)\s*\(.*['"]fs['"]\)/` | Dynamic fs imports | Non-capturing group |
+
+### Scope Glob Syntax Reference
+
+| Pattern | Matches | Notes |
+|---------|---------|-------|
+| `src/**/*.ts` | All `.ts` files recursively under `src/` | `**` = any depth |
+| `src/**/*.{ts,tsx}` | `.ts` and `.tsx` files | Brace expansion |
+| `!src/**/*.test.*` | Excludes test files | `!` prefix = negation |
+| `src/routes/**/*.ts` | Only route files | Narrow scope = fewer false positives |
+| `supabase/migrations/**/*.sql` | SQL migration files | Target specific directories |
+
+### Example Contract Structure
+
+```yaml
+contract_meta:
+  id: feature_example           # Unique ID
+  version: 1                    # Version number
+  covers_reqs: [EX-001]        # Requirements
+  owner: "team-name"           # Owner
+
+llm_policy:
+  enforce: true
+  llm_may_modify_non_negotiables: false
+  override_phrase: "override_contract: feature_example"
+
+rules:
+  non_negotiable:
+    - id: EX-001
+      title: "Description of what this rule enforces"
+      scope:
+        - "src/features/example/**/*.ts"
+      behavior:
+        forbidden_patterns:
+          - pattern: /bad_pattern/
+            message: "Why this is bad and what to do instead"
+        required_patterns:
+          - pattern: /good_pattern/
+            message: "This pattern must be present"
+        example_violation: |
+          // Code that violates this rule
+        example_compliant: |
+          // Code that satisfies this rule
+      auto_fix:
+        strategy: "replace_with"
+        find: "bad_pattern"
+        replace: "good_pattern"
+```

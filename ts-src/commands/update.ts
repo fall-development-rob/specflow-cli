@@ -96,29 +96,11 @@ fi
     console.log(`  ${green('+')} Installed git commit-msg hook`);
   }
 
-  // 5. Optionally install CI workflows
+  // 5. CI pipeline guidance (static templates replaced by ci-builder agent)
   if (options.ci) {
-    const workflowsDir = path.join(target, '.github', 'workflows');
-    ensureDir(workflowsDir);
-
-    const ciWorkflow = `name: Specflow Contract Enforcement
-on: [pull_request]
-jobs:
-  enforce:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - run: npm ci
-      - run: npx specflow enforce --json
-`;
-    const workflowPath = path.join(workflowsDir, 'specflow-enforce.yml');
-    if (!fs.existsSync(workflowPath)) {
-      fs.writeFileSync(workflowPath, ciWorkflow);
-      console.log(`  ${green('+')} Created .github/workflows/specflow-enforce.yml`);
-    }
+    console.log('');
+    console.log('  To generate a CI pipeline, run: specflow agent show ci-builder');
+    console.log('  Or ask Claude Code: Generate CI pipeline for this project');
   }
 
   console.log('');

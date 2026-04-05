@@ -453,6 +453,78 @@ issue-lifecycle teammate calls heal-loop internally when contract tests fail dur
 
 ---
 
+---
+
+## Schema Extension Knowledge
+
+### auto_fix Strategies
+
+The contract YAML `auto_fix` field tells heal-loop exactly how to fix a violation. Each strategy has specific behavior:
+
+| Strategy | Action | When to Use | Example |
+|----------|--------|-------------|---------|
+| `add_import` | Adds an import statement at the top of the file | Required pattern is a module import | `import { authMiddleware } from '@/middleware/auth'` |
+| `remove_pattern` | Removes the line(s) matching the forbidden pattern | Forbidden pattern is self-contained (one line) | Remove `console.log(password)` |
+| `wrap_with` | Wraps existing code with a required pattern | Code exists but needs a wrapper/middleware | Wrap route with `authMiddleware` |
+| `replace_with` | Substitutes forbidden pattern with compliant alternative | Direct 1:1 replacement exists | `localStorage` -> `chrome.storage.local` |
+
+### auto_fix YAML Format
+
+```yaml
+auto_fix:
+  strategy: "add_import"
+  import_line: "import { authMiddleware } from '@/middleware/auth'"
+
+auto_fix:
+  strategy: "remove_pattern"
+  # No extra fields — removes the matched forbidden pattern
+
+auto_fix:
+  strategy: "wrap_with"
+  wrapper: "authMiddleware"
+  position: "before_handler"  # before_handler | around | after
+
+auto_fix:
+  strategy: "replace_with"
+  find: "localStorage"
+  replace: "chrome.storage.local"
+```
+
+### Soft Rules vs Hard Rules
+
+| Property | Hard Rules (non_negotiable) | Soft Rules (soft) |
+|----------|---------------------------|-------------------|
+| Section | `rules.non_negotiable[]` | `rules.soft[]` |
+| Build behavior | **Fail the build** on violation | **Warn** but do not fail |
+| heal-loop action | Attempt auto-fix if `auto_fix` present | Log suggestion, never auto-fix |
+| Override | Requires human `override_contract` | LLM may bend if conditions in `llm_may_bend_if` are met |
+| Fields | `id`, `title`, `scope`, `behavior`, `auto_fix` | `id`, `title`, `suggestion`, `llm_may_bend_if` |
+
+### Severity Handling
+
+When processing violations, handle them in severity order:
+
+1. **Critical (non_negotiable without auto_fix)** — Cannot auto-fix. Escalate immediately.
+2. **Fixable (non_negotiable with auto_fix)** — Attempt auto-fix. This is heal-loop's primary domain.
+3. **Advisory (soft rules)** — Log the suggestion. Never attempt to fix.
+
+### Confidence-Tiered Fix Application
+
+The fix pattern store assigns confidence tiers that control how aggressively fixes are applied:
+
+| Tier | Confidence | Action | Risk |
+|------|-----------|--------|------|
+| **Platinum** | >= 0.95 | Auto-apply immediately, no review needed | Minimal — pattern proven across many fixes |
+| **Gold** | >= 0.85 | Auto-apply with `[fix-pattern: id]` tag for tracking | Low — high success rate but still flagged |
+| **Silver** | >= 0.75 | Log as suggestion, use as reference only | Medium — pattern has some failures |
+| **Bronze** | < 0.70 | Log for analysis, proceed with standard logic | Higher — pattern still learning |
+
+**Promotion/demotion rules:**
+- Successful fix: confidence += 0.05
+- Failed fix: confidence -= 0.10 (penalize failures more heavily)
+- Unused for 90+ days: confidence decays by 0.01/week
+- Below 0.30: archived (removed from active matching)
+
 # Attribution
 # Self-healing fix loop adapted from forge (https://github.com/ikennaokpala/forge)
 # by Ikenna N. Okpala. Forge's Failure Analyzer (Sonnet) and Bug Fixer (Opus)

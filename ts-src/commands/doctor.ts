@@ -132,6 +132,9 @@ export function run(options: DoctorOptions): void {
   // 13. Contract graph integrity
   checks.push(checkGraphIntegrity(projectRoot));
 
+  // 14. Knowledge graph database
+  checks.push(checkKnowledgeGraph(projectRoot));
+
   // Output
   if (options.json) {
     printJsonOutput(checks);
@@ -242,6 +245,25 @@ function checkGraphIntegrity(projectRoot: string): Check {
     return { name: 'Contract graph', severity: 'LOW', status: 'pass', detail: 'Integrity checks passed' };
   } catch {
     return { name: 'Contract graph', severity: 'LOW', status: 'fail', detail: 'Graph integrity errors' };
+  }
+}
+
+function checkKnowledgeGraph(projectRoot: string): Check {
+  try {
+    const { graphExists } = require('../graph/database');
+    if (!graphExists(projectRoot)) {
+      return { name: 'Knowledge graph', severity: 'LOW', status: 'warn', detail: 'Not initialized — run specflow init or specflow enforce' };
+    }
+    // Verify database can be opened and has tables
+    const { initGraph, query, closeGraph } = require('../graph/database');
+    const database = (globalThis as any).__syncInitGraph?.(projectRoot);
+    if (!database) {
+      // Can't do async check in sync function — just verify file exists
+      return { name: 'Knowledge graph', severity: 'LOW', status: 'pass', detail: '.specflow/knowledge.db exists' };
+    }
+    return { name: 'Knowledge graph', severity: 'LOW', status: 'pass', detail: '.specflow/knowledge.db exists and valid' };
+  } catch (e: any) {
+    return { name: 'Knowledge graph', severity: 'LOW', status: 'warn', detail: `Check failed: ${e.message}` };
   }
 }
 

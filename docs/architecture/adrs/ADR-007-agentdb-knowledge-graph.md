@@ -1,8 +1,24 @@
-# ADR-007: AgentDB as Knowledge Graph and Learning Memory Layer
+# ADR-007: Knowledge Graph and Learning Memory Layer
 
-**Status:** Proposed
+**Status:** Amended
 **Date:** 2026-04-04
+**Amended:** 2026-04-04
 **Depends on:** ADR-006 (Knowledge as Components), ADR-005 (Agent Registry), ADR-004 (MCP Server Design)
+
+---
+
+## Amendment (2026-04-04)
+
+AgentDB alpha (`agentdb@3.0.0-alpha.11`) was tested on 2026-04-04. Core features do not work reliably:
+
+- **ReflexionMemory:** `storeEpisode` fails with `NOT NULL constraint` even when all required fields are provided
+- **SkillLibrary:** `searchSkills` returns empty results for exact matches
+- **CausalMemoryGraph:** `queryCausalEffects` returns empty arrays — data goes in but doesn't come out
+- **Lifecycle:** `db.close()` crashes with a race condition (`database connection not open`)
+- **API mismatch:** README documents `db.store()` which does not exist as a function — docs don't match actual API
+- **Vector search:** API is undiscoverable from the main class
+
+**Decision amended:** Use **sql.js** (WASM SQLite) directly with the same graph schema defined in this ADR. sql.js is what AgentDB uses internally — it is stable, proven, has zero native dependencies, and works everywhere. The graph model, node types, edge types, and lifecycle integration described below remain correct and unchanged. AgentDB becomes a future migration target when it reaches a stable release with working APIs.
 
 ---
 
@@ -34,32 +50,37 @@ This requires a persistent knowledge layer — a graph database with learning ca
 
 ## Decision
 
-**Use AgentDB (`agentdb@3.0.0-alpha.11`) as the knowledge graph and learning memory layer.** Store the graph in `.specflow/knowledge.rvf` (a single portable file).
+**Use sql.js (WASM SQLite) directly as the knowledge graph storage layer.** Store the graph in `.specflow/knowledge.db` (a single portable SQLite file). The graph schema (nodes, edges, properties) is implemented with SQL tables and indexes.
 
-### Why AgentDB
+### Why sql.js
 
-AgentDB is an npm package (MIT license, by ruvnet) that provides:
+sql.js is the WASM build of SQLite, available as an npm package:
 
-- **Zero native deps** — uses sql.js (WASM SQLite) internally
-- **Single .rvf file** — "Cognitive Container" format, portable and git-friendly
-- **Cypher graph queries** — familiar graph query language
-- **6 cognitive memory patterns** — episodic, semantic, procedural, reflexion, skill, working
-- **Self-learning search** — improves retrieval with usage
-- **9 reinforcement learning algorithms** — Decision Transformer, Q-Learning, SARSA, Actor-Critic, etc.
-- **41 MCP tools** — ready-made integration points
-- **GNN attention** — graph neural network for prioritizing scans
-- **COW branching** — copy-on-write for safe experimentation
-- **Witness chain** — cryptographic audit trail for compliance proof
+- **Zero native deps** — pure WASM, works everywhere Node.js runs
+- **Single .db file** — standard SQLite format, portable and tooling-friendly
+- **SQL queries** — well-known query language; recursive CTEs enable graph traversal
+- **Proven stability** — SQLite is the most deployed database engine in the world
 - **TypeScript** — works in Node.js, browser, and edge runtimes
-- **5.2MB unpacked** — minimal footprint
+- **Lightweight** — minimal footprint, no external services
+
+### Future: AgentDB Migration
+
+When AgentDB reaches a stable release with working APIs, the graph can be migrated from sql.js to AgentDB. The schema is designed to be implementation-agnostic — the same node types, edge types, and relationships apply regardless of whether the backend is raw SQL or AgentDB's cognitive container format. AgentDB would provide additional capabilities for free:
+
+- Self-learning search (improves retrieval with usage)
+- 9 reinforcement learning algorithms
+- GNN attention for prioritizing scans
+- COW branching for safe experimentation
+- Witness chain for cryptographic audit trail
+- 41 ready-made MCP tools
 
 ---
 
 ## Feature Mappings
 
-Each AgentDB capability maps to a specific Specflow use case:
+Each knowledge graph capability maps to a specific Specflow use case (features marked * require future AgentDB migration):
 
-| # | AgentDB Feature | Specflow Use Case |
+| # | Feature | Specflow Use Case |
 |---|----------------|-------------------|
 | 1 | Self-learning search | "Last 5 times SEC-001 was violated, what fix worked?" → suggest best fix |
 | 2 | Reflexion memory | Agent tried a fix, it failed → remember not to try that again |
@@ -112,17 +133,17 @@ Each AgentDB capability maps to a specific Specflow use case:
 
 ### `specflow init`
 
-Creates `.specflow/knowledge.rvf` if it doesn't exist. Indexes all contracts and agents as graph nodes:
+Creates `.specflow/knowledge.db` if it doesn't exist. Runs CREATE TABLE/INDEX statements, then indexes all contracts and agents as graph nodes:
 
 ```
-1. Create .rvf file with AgentDB
+1. Create .db file with sql.js, run schema DDL
 2. For each contract in .specflow/contracts/:
-   a. Create Contract node
-   b. For each rule: create Rule node + has_rule edge
-   c. For each scope glob: resolve files, create File nodes + scopes_to edges
+   a. INSERT Contract node
+   b. For each rule: INSERT Rule node + has_rule edge
+   c. For each scope glob: resolve files, INSERT File nodes + scopes_to edges
 3. For each agent in agents/:
-   a. Create Agent node
-   b. For each contract binding: create edges to Contract nodes
+   a. INSERT Agent node
+   b. For each contract binding: INSERT edges to Contract nodes
 ```
 
 ### `specflow enforce`
@@ -166,7 +187,7 @@ check-compliance.ts:
 
 Expose graph queries to Claude Code:
 
-- `specflow_query_graph` — execute Cypher queries against the knowledge graph
+- `specflow_query_graph` — execute SQL queries against the knowledge graph
 - `specflow_get_fix_suggestion` — query skill library for a specific violation pattern
 - `specflow_get_impact` — show what would be affected by a contract change
 
@@ -176,7 +197,9 @@ Queries skill library for known fixes, records outcomes:
 
 ```
 1. Receive violation from enforce output
-2. Query skill library: MATCH (s:Skill) WHERE s.pattern = $violation_pattern RETURN s
+2. Query skill library:
+   SELECT * FROM nodes WHERE type='skill'
+     AND json_extract(properties, '$.pattern') = ?
 3. If skill found with confidence > threshold: apply fix
 4. If no skill: attempt heuristic fix
 5. Record Fix node with outcome (success/failure)
@@ -199,29 +222,33 @@ Background job for pattern discovery and maintenance:
 
 ## Storage
 
-- **File:** `.specflow/knowledge.rvf`
-- **Format:** AgentDB Cognitive Container (WASM SQLite-backed)
+- **File:** `.specflow/knowledge.db`
+- **Format:** SQLite database (via sql.js WASM)
 - **Size:** Starts small (~100KB), grows with usage
-- **Portability:** Single file, copy to share, git-trackable (binary)
+- **Portability:** Single file, copy to share, standard SQLite tooling works
 - **Gitignore:** Recommended to add to `.gitignore` (project-specific data), but optional
 
 ---
 
 ## Alternatives Considered
 
-### 1. Raw sql.js (WASM SQLite)
+### 1. sql.js (WASM SQLite) — CHOSEN
 
-**Rejected.** Provides the storage layer but not the graph abstraction, learning algorithms, or MCP integration. We'd be reimplementing most of what AgentDB already provides.
+**Adopted.** sql.js provides a stable, proven storage layer with zero native dependencies. The graph abstraction (nodes table + edges table) is simple to implement. Learning algorithms and MCP integration are built as application-layer services on top of SQL queries. Recursive CTEs enable graph traversal without a dedicated graph query language.
 
-### 2. Custom Graph Implementation
+### 2. AgentDB — FUTURE CONSIDERATION
 
-**Rejected.** Building a graph database from scratch — even a simple one — is a significant engineering effort. Node/edge storage, query language, indexing, traversal optimization... this is reinventing the wheel when a mature option exists.
+**Deferred.** AgentDB wraps sql.js and adds cognitive memory patterns, reinforcement learning, and self-learning search. However, the alpha release (`3.0.0-alpha.11`) has critical bugs (see Amendment above). When AgentDB reaches a stable release, migrating from raw sql.js to AgentDB would be straightforward since the underlying storage engine is the same. This would unlock learning features (RL algorithms, GNN attention, witness chain) without schema changes.
 
-### 3. No Graph (Status Quo — Stateless)
+### 3. Custom Graph Implementation
+
+**Rejected.** A dedicated graph engine is overkill for this use case. The node/edge table pattern with SQL queries is sufficient for the graph operations Specflow needs.
+
+### 4. No Graph (Status Quo — Stateless)
 
 **Rejected.** The stateless approach means every enforce run starts fresh. No learning, no fix suggestions, no trend tracking, no impact analysis. This was acceptable for v0.x but blocks the knowledge embedding goals of Phase 9.
 
-### 4. Neo4j / ArangoDB / External Graph DB
+### 5. Neo4j / ArangoDB / External Graph DB
 
 **Rejected.** Requires a running database server, adds infrastructure complexity, breaks the "zero dependencies beyond Node.js" principle. Specflow must remain easy to install with `npm install -g`.
 
@@ -231,11 +258,11 @@ Background job for pattern discovery and maintenance:
 
 | Risk | Severity | Mitigation |
 |------|----------|------------|
-| Alpha stability (agentdb@3.0.0-alpha) | MEDIUM | sql.js backend is stable and production-proven; AgentDB's alpha status is about API surface, not data integrity |
-| 5.2MB size increase | LOW | Acceptable for the functionality gained; smaller than many common dev dependencies |
-| Dependency on ruvnet ecosystem | MEDIUM | MIT license allows forking; sql.js backend is independent; .rvf format is documented |
-| .rvf file corruption | LOW | sql.js has WAL journaling; COW branching provides additional safety |
-| Performance on large projects | LOW | SQLite handles millions of rows; graph queries are indexed; GNN attention reduces scan scope |
+| Manual implementation of learning features | MEDIUM | sql.js provides storage but not RL algorithms, GNN attention, or self-learning search. These features are deferred to a future AgentDB migration. Phase 10 focuses on the structured graph with basic SQL queries — learning features are additive, not blocking. |
+| sql.js WASM size | LOW | sql.js adds ~2MB; acceptable for the functionality gained |
+| .db file corruption | LOW | SQLite has WAL journaling and is extremely well-tested for crash safety |
+| Performance on large projects | LOW | SQLite handles millions of rows; graph queries are indexed |
+| Schema evolution | LOW | Standard SQLite migrations; ALTER TABLE and new indexes can be added incrementally |
 
 ---
 
@@ -253,16 +280,16 @@ Background job for pattern discovery and maintenance:
 
 ### Negative
 
-- **New dependency:** agentdb is added to package.json — increases install footprint by ~5.2MB
-- **Alpha status:** API may change before 3.0.0 stable — may require migration work
+- **New dependency:** sql.js is added to package.json — increases install footprint by ~2MB
+- **Manual graph implementation:** Features that AgentDB would provide for free (self-learning search, RL algorithms, GNN attention) must be implemented manually or deferred
 - **Complexity increase:** The system now has persistent state to manage (init, migrate, prune)
-- **Binary storage:** .rvf files are binary, not human-readable (unlike YAML contracts)
+- **Binary storage:** .db files are binary, not human-readable (unlike YAML contracts) — but standard SQLite tools can inspect them
 
 ---
 
 ## Related Documents
 
-- [ADR-006: Knowledge as Components](ADR-006-knowledge-as-components.md) — the delivery layer that AgentDB powers
+- [ADR-006: Knowledge as Components](ADR-006-knowledge-as-components.md) — the delivery layer that the knowledge graph powers
 - [DDD-004: Knowledge Graph Domain Design](../ddds/DDD-004-knowledge-graph.md) — domain model for the graph
 - [PRD-006: Knowledge Graph Integration](../prds/PRD-006-knowledge-graph.md) — feature specifications
 - [MASTER-PLAN Phase 10](../plan/MASTER-PLAN.md) — execution plan

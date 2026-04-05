@@ -9,7 +9,7 @@
 
 ## Overview
 
-Integrate AgentDB as a persistent knowledge graph into Specflow's enforcement pipeline. This makes enforcement stateful and learning: violations are recorded, fixes are tracked, patterns are extracted as reusable skills, and the system suggests fixes based on history. See [ADR-007](../adrs/ADR-007-agentdb-knowledge-graph.md) for the architectural decision and [DDD-004](../ddds/DDD-004-knowledge-graph.md) for the domain model.
+Integrate a persistent knowledge graph (via sql.js / WASM SQLite) into Specflow's enforcement pipeline. This makes enforcement stateful and learning: violations are recorded, fixes are tracked, patterns are extracted as reusable skills, and the system suggests fixes based on history. See [ADR-007](../adrs/ADR-007-agentdb-knowledge-graph.md) for the architectural decision (amended: sql.js instead of AgentDB) and [DDD-004](../ddds/DDD-004-knowledge-graph.md) for the domain model.
 
 ---
 
@@ -31,7 +31,9 @@ Integrate AgentDB as a persistent knowledge graph into Specflow's enforcement pi
 
 ## Dependency
 
-Add `agentdb@^3.0.0-alpha.11` to `package.json` dependencies. This adds ~5.2MB to the installed package and zero native dependencies.
+Add `sql.js` to `package.json` dependencies. sql.js is a WASM build of SQLite — zero native dependencies, works everywhere Node.js runs. Adds ~2MB to the installed package.
+
+> **Note:** AgentDB (`agentdb@3.0.0-alpha.11`) was evaluated but its core APIs are broken in alpha (see [ADR-007 Amendment](../adrs/ADR-007-agentdb-knowledge-graph.md#amendment-2026-04-04)). sql.js is what AgentDB uses internally. When AgentDB reaches a stable release, it becomes a migration target.
 
 ---
 
@@ -43,19 +45,20 @@ Add `agentdb@^3.0.0-alpha.11` to `package.json` dependencies. This adds ~5.2MB t
 
 When `specflow init` runs, in addition to existing behavior:
 
-1. Create `.specflow/knowledge.rvf` if it doesn't exist
-2. Index all contracts from `.specflow/contracts/` as Contract + Rule + Pattern nodes
-3. Index all agents from `agents/` as Agent nodes
-4. Resolve all scope globs to File nodes with scopes_to edges
-5. If `.rvf` already exists, sync: add new nodes, update changed ones, deprecate removed ones
+1. Create `.specflow/knowledge.db` if it doesn't exist (sql.js creates SQLite database)
+2. Run CREATE TABLE and CREATE INDEX statements (nodes, edges, indexes)
+3. Index all contracts from `.specflow/contracts/` as Contract + Rule + Pattern nodes (INSERT statements)
+4. Index all agents from `agents/` as Agent nodes (INSERT statements)
+5. Resolve all scope globs to File nodes with scopes_to edges
+6. If `.db` already exists, sync: add new nodes, update changed ones, deprecate removed ones
 
 **Acceptance Criteria:**
 
-- [ ] `specflow init .` creates `.specflow/knowledge.rvf`
-- [ ] Running init twice is idempotent (no duplicate nodes)
+- [ ] `specflow init .` creates `.specflow/knowledge.db`
+- [ ] Running init twice is idempotent (no duplicate nodes — uses INSERT OR REPLACE)
 - [ ] All contracts and agents appear as graph nodes
 - [ ] Scope globs are resolved to File nodes
-- [ ] `.specflow/knowledge.rvf` is added to `.gitignore` template
+- [ ] `.specflow/knowledge.db` is added to `.gitignore` template
 
 ### Feature B: Violation Recording
 
@@ -63,10 +66,10 @@ When `specflow init` runs, in addition to existing behavior:
 
 After the contract scanner produces violations:
 
-1. Start a new Episode record
-2. For each violation: create or update Violation node + violated_in edge
-3. Deduplicate: if same rule + file + line already exists, update `last_seen` and increment count
-4. End episode with summary metadata (timestamp, file count, violation count, duration)
+1. Start a new Episode record (INSERT INTO nodes with type='episode')
+2. For each violation: INSERT Violation node + violated_in edge
+3. Deduplicate: if same rule + file + line already exists, UPDATE `last_seen` and increment count
+4. End episode with summary metadata (UPDATE episode node properties)
 
 **Acceptance Criteria:**
 
@@ -82,10 +85,10 @@ After the contract scanner produces violations:
 
 When a fix is attempted:
 
-1. Create Fix node linked to the Violation
-2. Record method (skill, heuristic, manual, auto_fix), agent, code before/after
-3. After re-enforce: record outcome (success if violation is gone, failure if still present)
-4. Update agent's success_rate metric
+1. INSERT Fix node linked to the Violation (INSERT INTO nodes + INSERT INTO edges with relation='fixed_by')
+2. Record method (skill, heuristic, manual, auto_fix), agent, code before/after in properties JSON
+3. After re-enforce: UPDATE outcome (success if violation is gone, failure if still present)
+4. UPDATE agent node's success_rate metric
 
 **Acceptance Criteria:**
 
@@ -100,11 +103,11 @@ When a fix is attempted:
 
 After N successful fixes of the same pattern (default N=3):
 
-1. Group fixes by rule + pattern similarity
+1. Aggregate query: group fixes by rule + pattern (no ML — frequency-based pattern extraction via SQL GROUP BY)
 2. Extract common fix template
 3. Calculate confidence = successes / total attempts
-4. If confidence >= 0.7: promote to Skill node
-5. Low-confidence skills (< 0.3) are pruned
+4. If confidence >= 0.7: INSERT or UPDATE Skill node
+5. Low-confidence skills (< 0.3) are pruned (DELETE FROM nodes WHERE type='skill' AND confidence < 0.3)
 
 **Acceptance Criteria:**
 
@@ -119,7 +122,7 @@ After N successful fixes of the same pattern (default N=3):
 
 When violations are found:
 
-1. For each violation, query the skill library for matching skills
+1. For each violation, SELECT from skill nodes with confidence ordering (no self-learning search — just SQL ranking)
 2. If a skill with confidence >= 0.7 exists, include it in the output:
    ```
    SEC-003 violation in src/auth.ts:42 — innerHTML usage
@@ -205,8 +208,8 @@ Three new MCP tools for Claude Code integration:
 | Field | Value |
 |-------|-------|
 | Tool name | `specflow_query_graph` |
-| Description | Execute a Cypher query against the Specflow knowledge graph |
-| Inputs | `query` (string): Cypher query; `params` (object, optional): query parameters |
+| Description | Execute a SQL query against the Specflow knowledge graph |
+| Inputs | `query` (string): SQL query; `params` (array, optional): query parameters |
 | Output | Query results as JSON |
 
 #### H2. `specflow_get_fix_suggestion`
@@ -230,7 +233,7 @@ Three new MCP tools for Claude Code integration:
 **Acceptance Criteria:**
 
 - [ ] All three tools appear in `specflow mcp tools` output
-- [ ] `specflow_query_graph` executes Cypher and returns results
+- [ ] `specflow_query_graph` executes SQL and returns results
 - [ ] `specflow_get_fix_suggestion` returns skills or "no suggestion"
 - [ ] `specflow_get_impact` returns impact analysis
 - [ ] Tools handle malformed input gracefully (no crashes)
@@ -241,16 +244,18 @@ Three new MCP tools for Claude Code integration:
 
 Background job that consolidates learning:
 
-1. **Pattern discovery:** Group similar violations, extract common fixes → new Skills
-2. **Confidence update:** Recalculate skill confidence from recent outcomes
-3. **Pruning:** Remove violations older than retention period (default 90 days), prune low-confidence skills
-4. **Causal discovery:** Correlate contract changes with violation spikes → Causal Links
-5. **GNN attention update:** Recalculate attention weights to prioritize likely violation areas
+1. **Pattern discovery:** Aggregate SQL query grouping similar violations, extract common fixes → new Skills
+2. **Confidence update:** Recalculate skill confidence from recent outcomes (UPDATE skill confidence)
+3. **Pruning:** DELETE violations older than retention period (default 90 days), DELETE low-confidence skills
+4. **Causal discovery:** Correlate contract changes with violation spikes → INSERT causal edges
+5. **Database maintenance:** VACUUM to reclaim space
+
+> **Note:** Self-learning search, GNN attention, and RL features are deferred to a future AgentDB migration. Phase 10 implements the structured graph with SQL. Learning features will be added when a stable graph/learning library is available.
 
 **Acceptance Criteria:**
 
 - [ ] `specflow learn` runs consolidation and reports results
-- [ ] New skills are discovered from fix patterns
+- [ ] New skills are discovered from fix patterns (frequency-based, not ML)
 - [ ] Old violations are pruned (configurable retention)
 - [ ] Causal correlations are detected and recorded
 - [ ] Consolidation completes in < 30 seconds for projects with < 10,000 violation records
@@ -275,7 +280,7 @@ Background job that consolidates learning:
 
 ## Related Documents
 
-- [ADR-007: AgentDB as Knowledge Graph](../adrs/ADR-007-agentdb-knowledge-graph.md)
+- [ADR-007: Knowledge Graph (Amended)](../adrs/ADR-007-agentdb-knowledge-graph.md)
 - [DDD-004: Knowledge Graph Domain Design](../ddds/DDD-004-knowledge-graph.md)
 - [PRD-005: Knowledge Embedding](PRD-005-knowledge-embedding.md)
 - [ADR-006: Knowledge as Components](../adrs/ADR-006-knowledge-as-components.md)
