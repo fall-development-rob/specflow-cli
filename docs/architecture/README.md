@@ -24,6 +24,9 @@ This directory contains the planning, architecture, and design documents for tra
 | [PRD-004: Agent System](prds/PRD-004-agent-system.md) | 5 | Agent frontmatter, registry, CLI commands, MCP tools |
 | [PRD-005: Knowledge Embedding](prds/PRD-005-knowledge-embedding.md) | 9 | Skill, MCP tools, new agent, agent enrichment, hook enhancement |
 | [PRD-006: Knowledge Graph](prds/PRD-006-knowledge-graph.md) | 10 | sql.js knowledge graph, violation recording, fix tracking, skill discovery, MCP graph tools |
+| [PRD-007: Incremental Enforcement & PR Compliance](prds/PRD-007-incremental-enforcement.md) | 11a/b/d | --staged, --diff, --suggest flags, PR compliance reports |
+| [PRD-008: Contract Creation](prds/PRD-008-contract-creation.md) | 11c | specflow contract create with template and AI modes |
+| [PRD-009: Contract Packages](prds/PRD-009-contract-packages.md) | 11e | Shareable contract packages via npm: add, remove, publish |
 
 ### ADRs (Architecture Decision Records)
 
@@ -36,6 +39,8 @@ This directory contains the planning, architecture, and design documents for tra
 | [ADR-005: Agent Registry](adrs/ADR-005-agent-registry.md) | YAML frontmatter on agent files, runtime index, no manifest file |
 | [ADR-006: Knowledge as Components](adrs/ADR-006-knowledge-as-components.md) | Embed knowledge in skills, agents, MCP tools, and hooks instead of static docs |
 | [ADR-007: Knowledge Graph (Amended)](adrs/ADR-007-agentdb-knowledge-graph.md) | Use sql.js (WASM SQLite) as knowledge graph storage layer; AgentDB deferred to future stable release |
+| [ADR-008: Incremental Enforcement](adrs/ADR-008-incremental-enforcement.md) | Add --staged and --diff flags to enforce command for git-scoped scanning |
+| [ADR-009: Contract Packages](adrs/ADR-009-contract-packages.md) | Contract packages distributed via npm with specflow field in package.json |
 
 ### DDDs (Domain Design Documents)
 
@@ -45,6 +50,17 @@ This directory contains the planning, architecture, and design documents for tra
 | [DDD-002: Enforcement Pipeline](ddds/DDD-002-enforcement-pipeline.md) | Git/build/edit/CI gates, hook protocol, journey enforcement, deferrals |
 | [DDD-003: Agent Registry](ddds/DDD-003-agent-registry.md) | Agent discovery, search, contract context injection |
 | [DDD-004: Knowledge Graph](ddds/DDD-004-knowledge-graph.md) | Graph model, domain services, SQL query patterns, sql.js integration |
+| [DDD-005: Incremental Enforcement](ddds/DDD-005-incremental-enforcement.md) | Git integration, file filter pipeline, baseline comparison, domain model |
+| [DDD-006: Contract Packages](ddds/DDD-006-contract-packages.md) | Package lifecycle, conflict resolution, registry interaction, domain model |
+
+---
+
+### Simulation Reports
+
+| Document | Features | Edge Cases |
+|----------|----------|------------|
+| [SIMULATION-REPORT.md](SIMULATION-REPORT.md) | Phase 8 — Full user journey | 7 edge cases |
+| [SIMULATION-REPORT-2.md](SIMULATION-REPORT-2.md) | Phase 11 — 5 new features | 38 edge cases |
 
 ---
 
@@ -79,6 +95,14 @@ Phase 9: Knowledge Embedding (PRD-005, ADR-006)
     |
     v
 Phase 10: Knowledge Graph via sql.js (PRD-006, ADR-007 Amended, DDD-004)
+    |
+    v
+Phase 11: Best-in-Class Features (PRD-007/008/009, ADR-008/009, DDD-005/006)
+    |-- 11a: Incremental Enforcement (--staged, --diff)
+    |-- 11b: Auto-Fix Suggestions (--suggest)
+    |-- 11c: Contract Creation
+    |-- 11d: PR Compliance Report
+    |-- 11e: Contract Packages
     |
     v
 v1.0 Release
