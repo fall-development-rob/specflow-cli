@@ -16,7 +16,7 @@
     "dist/",
     "native/",
     "hooks/",
-    "templates/",
+    "templates/contracts/",
     "agents/",
     "scripts/specflow-compile.cjs",
     "scripts/verify-graph.cjs",

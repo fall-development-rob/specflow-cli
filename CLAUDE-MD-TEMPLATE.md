@@ -474,8 +474,8 @@ See `templates/journeys-template.csv` for the CSV format.
 Copy CI templates to catch violations on PRs and direct pushes:
 
 ```bash
-cp Specflow/templates/ci/specflow-compliance.yml .github/workflows/
-cp Specflow/templates/ci/specflow-audit.yml .github/workflows/
+specflow agent show ci-builder
+# Or ask Claude Code: Generate CI pipeline for this project
 ```
 
 ---

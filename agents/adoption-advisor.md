@@ -134,7 +134,7 @@ Based on the assessment, recommend which contracts to start with:
    - Use `specflow defer` for legitimate exceptions
 
 3. **Add CI enforcement:**
-   - Copy `templates/ci/specflow-enforce.yml` to `.github/workflows/`
+   - Run `specflow agent show ci-builder` to generate a CI pipeline
    - Contract violations now block PRs
 
 #### Week 3: Custom Contracts
