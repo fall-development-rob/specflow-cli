@@ -45,7 +45,9 @@ Commands:
   doctor [dir] [--json] [--fix]       Run health checks
   enforce [dir] [--json] [--contract] Enforce contracts against files
   update [dir] [--ci]                 Update hooks and settings
-  status [dir] [--json]               Show compliance dashboard
+  status [dir] [--json] [--history]    Show compliance dashboard
+                                       [--since <date>]
+  impact <contract-id> [--json]       Analyze contract change impact
   compile <csv-file>                  Compile journey contracts
   audit <issue-number>                Audit a GitHub issue
   graph [contracts-dir]               Validate contract graph
@@ -117,6 +119,18 @@ async function main() {
       const { run } = require('./commands/status');
       await run({
         dir: getPositional(),
+        json: hasFlag('--json'),
+        history: hasFlag('--history'),
+        since: getFlagValue('--since'),
+      });
+      break;
+    }
+
+    case 'impact': {
+      const { run } = require('./commands/impact');
+      await run({
+        contractId: getPositional() || '',
+        dir: getFlagValue('--dir'),
         json: hasFlag('--json'),
       });
       break;

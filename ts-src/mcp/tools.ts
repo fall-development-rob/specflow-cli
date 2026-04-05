@@ -141,10 +141,41 @@ export function toolDefinitions(): ToolDefinition[] {
         },
       },
     },
+    {
+      name: 'specflow_query_graph',
+      description: 'Query the knowledge graph for scope, impact, trend, or hotspot data',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          query: {
+            type: 'string',
+            enum: ['scope', 'impact', 'trend', 'hotspots', 'most_violated'],
+            description: 'Predefined query to run',
+          },
+          params: {
+            type: 'object',
+            description: 'Query parameters: file_path (for scope), contract_id (for impact), days (for trend), limit (for hotspots/most_violated)',
+          },
+        },
+        required: ['query'],
+      },
+    },
+    {
+      name: 'specflow_get_fix_suggestion',
+      description: 'Get the best fix suggestion for a rule based on historical success',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          rule_id: { type: 'string', description: 'The rule ID to get fix suggestion for' },
+          contract_id: { type: 'string', description: 'Optional contract ID for scoping' },
+        },
+        required: ['rule_id'],
+      },
+    },
   ];
 }
 
-export function callTool(name: string, args: any): ToolCallResult {
+export function callTool(name: string, args: any): ToolCallResult | Promise<ToolCallResult> {
   switch (name) {
     case 'specflow_list_contracts': return handleListContracts(args);
     case 'specflow_check_code': return handleCheckCode(args);
@@ -158,6 +189,8 @@ export function callTool(name: string, args: any): ToolCallResult {
     case 'specflow_defer_journey': return handleDeferJourney(args);
     case 'specflow_get_schema': return handleGetSchema(args);
     case 'specflow_get_example': return handleGetExample(args);
+    case 'specflow_query_graph': return handleQueryGraph(args);
+    case 'specflow_get_fix_suggestion': return handleGetFixSuggestion(args);
     default: return toolResultError(`Unknown tool: ${name}`);
   }
 }
@@ -778,6 +811,87 @@ test_hooks:
   }
 
   return toolResultText(example);
+}
+
+async function handleQueryGraph(args: any): Promise<ToolCallResult> {
+  const queryName = args.query;
+  if (!queryName) return toolResultError('Missing required parameter: query');
+
+  const params = args.params || {};
+
+  try {
+    const { graphExists, initGraph, closeGraph } = require('../graph/database');
+    const projectRoot = process.cwd();
+
+    if (!graphExists(projectRoot)) {
+      return toolResultError('Knowledge graph not initialized. Run specflow enforce first.');
+    }
+
+    const database = await initGraph(projectRoot);
+    try {
+      const queries = require('../graph/queries');
+
+      switch (queryName) {
+        case 'scope': {
+          if (!params.file_path) return toolResultError('scope query requires params.file_path');
+          const result = queries.getScopeContracts(database, params.file_path);
+          return toolResultText(JSON.stringify({ file: params.file_path, applicable_rules: result }, null, 2));
+        }
+        case 'impact': {
+          if (!params.contract_id) return toolResultError('impact query requires params.contract_id');
+          const result = queries.getImpact(database, params.contract_id);
+          return toolResultText(JSON.stringify(result, null, 2));
+        }
+        case 'trend': {
+          const result = queries.getComplianceTrend(database, params.days || 30);
+          return toolResultText(JSON.stringify({ trend: result }, null, 2));
+        }
+        case 'hotspots': {
+          const result = queries.getViolationHotspots(database, params.limit || 10);
+          return toolResultText(JSON.stringify(result, null, 2));
+        }
+        case 'most_violated': {
+          const result = queries.getMostViolatedRules(database, params.limit || 10);
+          return toolResultText(JSON.stringify({ rules: result }, null, 2));
+        }
+        default:
+          return toolResultError(`Unknown query: ${queryName}. Valid: scope, impact, trend, hotspots, most_violated`);
+      }
+    } finally {
+      closeGraph(database);
+    }
+  } catch (e: any) {
+    return toolResultError(`Graph query failed: ${e.message}`);
+  }
+}
+
+async function handleGetFixSuggestion(args: any): Promise<ToolCallResult> {
+  const ruleId = args.rule_id;
+  if (!ruleId) return toolResultError('Missing required parameter: rule_id');
+
+  try {
+    const { graphExists, initGraph, closeGraph } = require('../graph/database');
+    const projectRoot = process.cwd();
+
+    if (!graphExists(projectRoot)) {
+      return toolResultText(JSON.stringify({ suggestion: null, reason: 'Knowledge graph not initialized' }, null, 2));
+    }
+
+    const database = await initGraph(projectRoot);
+    try {
+      const { suggestFix } = require('../graph/queries');
+      const suggestion = suggestFix(database, ruleId, args.contract_id);
+
+      if (suggestion) {
+        return toolResultText(JSON.stringify({ suggestion }, null, 2));
+      }
+      return toolResultText(JSON.stringify({ suggestion: null, reason: 'No matching fix found in history' }, null, 2));
+    } finally {
+      closeGraph(database);
+    }
+  } catch (e: any) {
+    return toolResultError(`Fix suggestion failed: ${e.message}`);
+  }
 }
 
 function getAgentList(agentsDir: string, category?: string): any[] {

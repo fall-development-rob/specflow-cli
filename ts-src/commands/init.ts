@@ -253,6 +253,21 @@ fi
     }
   }
 
+  // 10. Initialize knowledge graph
+  try {
+    const { rebuildGraph } = require('../graph/builder');
+    const result = await rebuildGraph(target);
+    if (!jsonOutput) {
+      console.log(`  ${green('+')} Built knowledge graph (${result.contracts} contracts, ${result.agents} agents)`);
+    }
+    steps.push('knowledge_graph');
+  } catch {
+    // Graph init is optional — don't block setup
+    if (!jsonOutput) {
+      console.log(`  Knowledge graph initialization skipped`);
+    }
+  }
+
   if (jsonOutput) {
     console.log(JSON.stringify({ status: 'success', target, config, steps_completed: steps }, null, 2));
   } else {

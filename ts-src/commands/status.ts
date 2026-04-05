@@ -7,15 +7,17 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { loadContracts, scanFiles } from '../lib/native';
 import { isExecutable } from '../lib/fs-utils';
-import { bold, red, green, yellow, cyan } from '../lib/logger';
+import { bold, red, green, yellow, cyan, dim } from '../lib/logger';
 import { loadConfig } from '../lib/config';
 
 interface StatusOptions {
   dir?: string;
   json?: boolean;
+  history?: boolean;
+  since?: string;
 }
 
-export function run(options: StatusOptions): void {
+export async function run(options: StatusOptions): Promise<void> {
   const projectRoot = path.resolve(options.dir || '.');
   const config = loadConfig(projectRoot);
   const contractsDir = path.join(projectRoot, config.contractsDir);
@@ -93,6 +95,62 @@ export function run(options: StatusOptions): void {
     console.log(`    Claude Code:    ${hasClaudeHooks ? green('installed') : red('missing')}`);
     console.log(`    CLAUDE.md:      ${hasClaudeMd ? green('present') : red('missing')}`);
     console.log('');
+  }
+
+  // Show history from knowledge graph if --history flag
+  if (options.history) {
+    try {
+      const { graphExists, initGraph, closeGraph } = require('../graph/database');
+      if (graphExists(projectRoot)) {
+        const database = await initGraph(projectRoot);
+        try {
+          const { getComplianceTrend, getViolationHotspots } = require('../graph/queries');
+          const days = options.since ? Math.ceil((Date.now() - new Date(options.since).getTime()) / (1000 * 60 * 60 * 24)) : 30;
+          const trend = getComplianceTrend(database, days);
+          const hotspots = getViolationHotspots(database, 5);
+
+          if (options.json) {
+            console.log(JSON.stringify({ compliance_trend: trend, hotspots }, null, 2));
+          } else {
+            if (trend.length > 0) {
+              console.log(bold('  Compliance Trend'));
+              for (const entry of trend) {
+                const bar = '#'.repeat(Math.min(entry.violations, 40));
+                console.log(`    ${entry.day}: ${red(String(entry.violations).padStart(3))} ${dim(bar)}`);
+              }
+              console.log('');
+            } else {
+              console.log('  No violation history recorded yet.');
+              console.log('');
+            }
+
+            if (hotspots.byRule.length > 0) {
+              console.log(bold('  Violation Hotspots'));
+              console.log('    By rule:');
+              for (const h of hotspots.byRule) {
+                console.log(`      ${yellow(h.ruleId)} (${h.contractId}): ${red(String(h.count))} violations`);
+              }
+              if (hotspots.byFile.length > 0) {
+                console.log('    By file:');
+                for (const h of hotspots.byFile) {
+                  console.log(`      ${cyan(h.file)}: ${red(String(h.count))} violations`);
+                }
+              }
+              console.log('');
+            }
+          }
+        } finally {
+          closeGraph(database);
+        }
+      } else {
+        if (!options.json) {
+          console.log('  No knowledge graph found. Run specflow enforce to build one.');
+          console.log('');
+        }
+      }
+    } catch {
+      // Graph operations are optional
+    }
   }
 }
 
