@@ -486,3 +486,169 @@ When AgentDB reaches a stable release:
 - [ADR-007: Knowledge Graph (Amended)](../adrs/ADR-007-agentdb-knowledge-graph.md)
 - [DDD-004: Knowledge Graph Domain Design](../ddds/DDD-004-knowledge-graph.md)
 - [PRD-006: Knowledge Graph Integration](../prds/PRD-006-knowledge-graph.md)
+
+---
+
+## Phase 11: Best-in-Class Features
+
+**Duration:** 6-8 weeks
+**Objective:** Five features that make Specflow competitive with commercial contract enforcement tools: incremental enforcement, fix suggestions, contract creation, PR compliance reports, and shareable contract packages.
+**Depends on:** Phase 10 (Knowledge Graph)
+**Simulation Report:** [SIMULATION-REPORT-2.md](../SIMULATION-REPORT-2.md) — 38 edge cases identified and resolved
+
+### Sub-phases
+
+#### Phase 11a: Incremental Enforcement (`enforce --staged` + `enforce --diff`)
+
+**Duration:** 1-2 weeks
+**Priority:** 1 (foundation for 11b and 11d)
+
+| # | Task | Component |
+|---|------|-----------|
+| 11a.1 | Implement `GitIntegrationService` — `getStagedFiles()`, `getDiffFiles()`, `getMergeBase()` | `ts-src/lib/git-integration.ts` |
+| 11a.2 | Implement `FileFilterPipeline` — status filter, path resolution, binary filter, scope filter | `ts-src/lib/file-filter.ts` |
+| 11a.3 | Add `--staged` flag to enforce command | `ts-src/commands/enforce.ts` |
+| 11a.4 | Add `--diff <branch>` flag to enforce command | `ts-src/commands/enforce.ts` |
+| 11a.5 | Handle all 8 edge cases (E1-1 through E1-8) | Error handling throughout |
+| 11a.6 | Add regression tests for incremental enforcement | `tests/enforce/*.test.js` |
+
+**Edge cases:** E1-1 (relative paths), E1-2 (deleted files), E1-3 (binary files), E1-4 (renamed files), E1-5 (not in git repo), E1-6 (branch not found), E1-7 (no common ancestor), E1-8 (empty diff)
+
+**Exit criteria:** `specflow enforce --staged` and `specflow enforce --diff main` work correctly. All 8 edge cases have passing regression tests.
+
+**Related documents:**
+- [ADR-008: Incremental Enforcement](../adrs/ADR-008-incremental-enforcement.md)
+- [DDD-005: Incremental Enforcement Domain Design](../ddds/DDD-005-incremental-enforcement.md)
+- [PRD-007: Incremental Enforcement & PR Compliance](../prds/PRD-007-incremental-enforcement.md)
+
+#### Phase 11b: Auto-Fix Suggestions (`enforce --suggest`)
+
+**Duration:** 1 week
+**Priority:** 2 (leverages Phase 10 knowledge graph)
+
+| # | Task | Component |
+|---|------|-----------|
+| 11b.1 | Seed knowledge graph with `example_compliant` patterns from contracts | `ts-src/lib/graph-builder.ts` |
+| 11b.2 | Add `--suggest` flag to enforce command | `ts-src/commands/enforce.ts` |
+| 11b.3 | Batch graph queries by unique rule ID | `ts-src/lib/fix-tracker.ts` |
+| 11b.4 | Display suggestions grouped by rule with "X/Y successful" confidence | `ts-src/lib/reporter.ts` |
+| 11b.5 | Add `specflow learn --mark-failed` feedback command | `ts-src/commands/learn.ts` |
+| 11b.6 | Add regression tests | `tests/enforce/*.test.js` |
+
+**Edge cases:** E2-1 (no history), E2-2 (seed data), E2-3 (wrong suggestion), E2-4 (confidence display), E2-5 (dedup per rule), E2-6 (opt-in), E2-7 (batch queries)
+
+**Exit criteria:** `specflow enforce --suggest` shows relevant fix suggestions. Fresh projects show seed suggestions from contract examples.
+
+#### Phase 11c: Contract Creation (`specflow contract create`)
+
+**Duration:** 1-2 weeks
+**Priority:** 4
+
+| # | Task | Component |
+|---|------|-----------|
+| 11c.1 | Create 6 pre-built contract templates | `templates/contract-templates/*.yml` |
+| 11c.2 | Implement template mode (`--template`) with interactive picker | `ts-src/commands/contract-create.ts` |
+| 11c.3 | Implement AI mode (`--ai`) with Claude CLI integration | `ts-src/commands/contract-create.ts` |
+| 11c.4 | Implement validation pipeline (regex, scope, examples, uniqueness) | `ts-src/lib/contract-validator.ts` |
+| 11c.5 | Implement interactive review (y/n/edit) | `ts-src/commands/contract-create.ts` |
+| 11c.6 | Auto-run enforcement after creation | `ts-src/commands/contract-create.ts` |
+| 11c.7 | Add regression tests | `tests/contract-create/*.test.js` |
+
+**Edge cases:** E3-1 through E3-10 (see PRD-008)
+
+**Exit criteria:** Both `--template` and `--ai` modes create valid, validated contracts. Interactive review works. 6 templates ship.
+
+**Related documents:**
+- [PRD-008: Contract Creation](../prds/PRD-008-contract-creation.md)
+
+#### Phase 11d: PR Compliance Report
+
+**Duration:** 1 week
+**Priority:** 3 (builds on 11a `--diff --json`)
+
+| # | Task | Component |
+|---|------|-----------|
+| 11d.1 | Implement `BaselineComparisonService` for new vs existing violations | `ts-src/lib/baseline-comparison.ts` |
+| 11d.2 | Add `specflow report post --github` command | `ts-src/commands/report.ts` |
+| 11d.3 | Implement comment update logic (find by HTML marker) | `ts-src/lib/github-reporter.ts` |
+| 11d.4 | Add `.specflow/config.json` support for `ci.onViolation` | `ts-src/lib/config.ts` |
+| 11d.5 | Handle large report truncation (60KB limit) | `ts-src/lib/github-reporter.ts` |
+| 11d.6 | Add regression tests | `tests/report/*.test.js` |
+
+**Edge cases:** E4-1 through E4-8 (see PRD-007)
+
+**Exit criteria:** `specflow enforce --diff main --json | specflow report post --github` posts a PR comment. Comments are updated, not duplicated. Block/warn mode configurable.
+
+#### Phase 11e: Contract Packages (`specflow add/remove/publish`)
+
+**Duration:** 2 weeks
+**Priority:** 5
+
+| # | Task | Component |
+|---|------|-----------|
+| 11e.1 | Implement `PackageDiscoveryService` | `ts-src/lib/package-discovery.ts` |
+| 11e.2 | Implement `PackageInstallerService` | `ts-src/lib/package-installer.ts` |
+| 11e.3 | Implement `ConflictResolutionService` | `ts-src/lib/conflict-resolution.ts` |
+| 11e.4 | Extend contract loader to scan `.specflow/packages/` | `ts-src/lib/contract-loader.ts` |
+| 11e.5 | Add `specflow add <package>` command | `ts-src/commands/add.ts` |
+| 11e.6 | Add `specflow remove <package>` command | `ts-src/commands/remove.ts` |
+| 11e.7 | Add `specflow update-packages` command | `ts-src/commands/update-packages.ts` |
+| 11e.8 | Add `specflow publish` command | `ts-src/commands/publish.ts` |
+| 11e.9 | Add `.specflow/packages.json` lock file management | `ts-src/lib/package-lock.ts` |
+| 11e.10 | Add doctor checks for package integrity | `ts-src/commands/doctor.ts` |
+| 11e.11 | Add regression tests | `tests/packages/*.test.js` |
+
+**Edge cases:** E5-1 through E5-11 (see PRD-009)
+
+**Exit criteria:** Full package lifecycle works: add, enforce, update, remove, publish. Rule ID conflicts detected. Doctor validates integrity.
+
+**Related documents:**
+- [ADR-009: Contract Packages](../adrs/ADR-009-contract-packages.md)
+- [DDD-006: Contract Packages Domain Design](../ddds/DDD-006-contract-packages.md)
+- [PRD-009: Contract Packages](../prds/PRD-009-contract-packages.md)
+
+### Updated Dependency Graph
+
+```
+Phase 1 (Clean)
+    ↓
+Phase 2 (CLI Rewrite)
+    ↓          ↓
+Phase 3      Phase 4
+(MCP)        (Install)
+    ↓          ↓
+Phase 5 (Agents)
+    ↓
+Phase 6 (Docs)
+    ↓
+Phase 7 (Rust Native Engine) ← if applicable
+    ↓
+Phase 8 (Simulation Fixes) ← BLOCKING v1.0
+    ↓
+Phase 9 (Knowledge Embedding)
+    ↓
+Phase 10 (Knowledge Graph)
+    ↓
+Phase 11 (Best-in-Class Features)
+    ├── 11a: Incremental Enforcement (--staged, --diff)
+    │     ↓
+    ├── 11b: Auto-Fix Suggestions (--suggest)
+    │     ↓
+    ├── 11d: PR Compliance Report
+    │
+    ├── 11c: Contract Creation
+    │
+    └── 11e: Contract Packages
+    ↓
+v1.0 Release
+```
+
+### Implementation Priority
+
+| Priority | Sub-phase | Reason |
+|----------|-----------|--------|
+| 1 | 11a: --staged + --diff | Foundation for 11b and 11d |
+| 2 | 11b: --suggest | Leverages Phase 10 knowledge graph, low effort |
+| 3 | 11d: PR compliance report | Builds on 11a --diff --json output |
+| 4 | 11c: Contract creation | Independent feature, no dependencies on 11a |
+| 5 | 11e: Contract packages | Largest scope, can be done last |
