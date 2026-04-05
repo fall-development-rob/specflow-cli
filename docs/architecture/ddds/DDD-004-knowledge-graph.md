@@ -8,7 +8,7 @@
 
 ## Domain Overview
 
-The knowledge graph is Specflow's persistent memory layer. It stores the relationships between contracts, rules, files, violations, fixes, and agents as a graph, enabling the system to learn from enforcement outcomes and suggest fixes based on history. Powered by AgentDB (see [ADR-007](../adrs/ADR-007-agentdb-knowledge-graph.md)).
+The knowledge graph is Specflow's persistent memory layer. It stores the relationships between contracts, rules, files, violations, fixes, and agents as a graph, enabling the system to learn from enforcement outcomes and suggest fixes based on history. Powered by sql.js (WASM SQLite), stored in `.specflow/knowledge.db`. See [ADR-007](../adrs/ADR-007-agentdb-knowledge-graph.md) for the architectural decision and amendment.
 
 ---
 
@@ -18,14 +18,13 @@ The knowledge graph is Specflow's persistent memory layer. It stores the relatio
 |------|-----------|
 | **Node** | A vertex in the knowledge graph representing a domain entity (Contract, Rule, File, Violation, etc.). |
 | **Edge** | A directed relationship between two nodes (has_rule, violated_in, fixed_by, etc.). |
-| **Memory** | A cognitive memory pattern stored in AgentDB — episodic, semantic, procedural, reflexion, skill, or working. |
+| **Memory** | A cognitive memory pattern stored in the knowledge graph — episodic, semantic, procedural, or skill-based. |
 | **Skill** | A learned, reusable fix pattern extracted from repeated successful fixes. Has a confidence score. |
 | **Episode** | A complete record of one enforcement run — violations found, fixes attempted, outcomes. |
 | **Violation Record** | A node recording a specific violation: which rule, which file, which line, when detected. |
 | **Fix Record** | A node recording a fix attempt: which violation, what method, what agent, success or failure. |
 | **Causal Link** | An edge tracking that one event caused another (e.g., relaxing a rule scope caused new violations). |
-| **Cognitive Container** | The `.rvf` file that stores the entire graph — AgentDB's single-file storage format. |
-| **Witness Chain** | Cryptographic audit trail proving that enforcement occurred and what results it produced. |
+| **Knowledge Database** | The `.specflow/knowledge.db` SQLite file that stores the entire graph. |
 
 ---
 
@@ -227,6 +226,36 @@ Rule --deferred--> File
 
 ---
 
+## SQL Schema
+
+The knowledge graph is stored in `.specflow/knowledge.db` using two core tables:
+
+```sql
+CREATE TABLE nodes (
+  id TEXT PRIMARY KEY,
+  type TEXT NOT NULL,
+  properties TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE TABLE edges (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  source TEXT NOT NULL,
+  target TEXT NOT NULL,
+  relation TEXT NOT NULL,
+  properties TEXT NOT NULL DEFAULT '{}',
+  created_at INTEGER DEFAULT (strftime('%s','now'))
+);
+
+CREATE INDEX idx_edges_source ON edges(source);
+CREATE INDEX idx_edges_target ON edges(target);
+CREATE INDEX idx_edges_relation ON edges(relation);
+CREATE INDEX idx_nodes_type ON nodes(type);
+```
+
+Node and edge properties are stored as JSON in the `properties` column, accessed via `json_extract()` in queries. This schema is implementation-agnostic — it can be migrated to AgentDB or another graph backend without changing the data model.
+
+---
+
 ## Domain Services
 
 ### GraphBuilder
@@ -235,9 +264,9 @@ Rule --deferred--> File
 
 ```
 GraphBuilder
-  .initialize(rvfPath) → Graph          # Create or open .rvf file
-  .indexContracts(contractDir) → void   # Sync contracts to graph nodes
-  .indexAgents(agentsDir) → void        # Sync agents to graph nodes
+  .initialize(dbPath) → Database        # Create or open .specflow/knowledge.db, run DDL
+  .indexContracts(contractDir) → void   # Sync contracts to graph nodes (INSERT INTO nodes/edges)
+  .indexAgents(agentsDir) → void        # Sync agents to graph nodes (INSERT INTO nodes)
   .resolveScopes(contracts) → void      # Resolve scope globs → File nodes + scopes_to edges
   .sync() → SyncReport                  # Full re-index, report additions/removals/changes
 ```
@@ -253,10 +282,10 @@ GraphBuilder
 
 ```
 ViolationRecorder
-  .startEpisode() → Episode             # Begin a new enforcement run record
-  .recordViolation(violation) → Node    # Create Violation node + edges
-  .endEpisode(summary) → void          # Finalize episode with metadata
-  .getActiveViolations(file?) → Violation[]  # Query active violations
+  .startEpisode() → Episode             # INSERT INTO nodes (type='episode')
+  .recordViolation(violation) → Node    # INSERT INTO nodes (type='violation') + INSERT INTO edges (relation='violated_in')
+  .endEpisode(summary) → void          # UPDATE nodes SET properties=... WHERE id=episode_id
+  .getActiveViolations(file?) → Violation[]  # SELECT from nodes WHERE type='violation'
 ```
 
 **Algorithm:**
@@ -276,9 +305,11 @@ For each violation from ContractScanner:
 ```
 FixTracker
   .recordFix(violation, method, agent, codeBefore, codeAfter) → Fix
+      # INSERT INTO nodes (type='fix') + INSERT INTO edges (relation='fixed_by')
   .recordOutcome(fixId, outcome, reEnforcePassed) → void
-  .getFixHistory(ruleId) → Fix[]       # All fix attempts for a rule
-  .getSuccessRate(ruleId) → number     # Success ratio for fixes of this rule
+      # UPDATE nodes SET properties=json_set(properties, '$.outcome', ?) WHERE id=?
+  .getFixHistory(ruleId) → Fix[]       # SELECT from nodes/edges WHERE type='fix'
+  .getSuccessRate(ruleId) → number     # Aggregate query on fix outcomes
 ```
 
 ### SkillDiscovery
@@ -287,44 +318,49 @@ FixTracker
 
 ```
 SkillDiscovery
-  .analyze() → Skill[]                  # Discover new skills from fix history
-  .promoteToSkill(pattern, fixTemplate) → Skill
-  .getSuggestion(violation) → Skill?   # Find a skill that matches this violation
-  .updateConfidence(skillId) → void    # Recalculate from recent outcomes
-  .prune(minConfidence) → number       # Remove skills below threshold
+  .analyze() → Skill[]                  # SELECT from edges WHERE relation='fixed_by' GROUP BY pattern HAVING count > N
+  .promoteToSkill(pattern, fixTemplate) → Skill   # INSERT INTO nodes (type='skill')
+  .getSuggestion(violation) → Skill?   # SELECT with confidence ordering
+  .updateConfidence(skillId) → void    # UPDATE based on recent success/failure ratio
+  .prune(minConfidence) → number       # DELETE FROM nodes WHERE type='skill' AND confidence < ?
 ```
 
 **Promotion algorithm:**
 ```
-1. Group fixes by rule_id + pattern similarity
+1. Group fixes by rule_id + pattern similarity:
+   SELECT json_extract(f.properties, '$.pattern') as pattern,
+          count(*) as fixes,
+          sum(CASE WHEN json_extract(f.properties, '$.outcome')='success' THEN 1 ELSE 0 END) as successes
+   FROM nodes f WHERE f.type='fix' GROUP BY pattern HAVING fixes >= 3
 2. For each group with >= N successful fixes (default N=3):
    a. Extract common fix template
-   b. Calculate confidence = successes / (successes + failures)
+   b. Calculate confidence = successes / total
    c. If confidence >= threshold (default 0.7):
-      Create or update Skill node
+      INSERT or UPDATE Skill node
 ```
 
 ### CausalAnalyzer
 
-**Responsibility:** Track cause-and-effect relationships between contract changes and violations.
+**Responsibility:** Track cause-and-effect relationships between contract changes and violations via recursive edge traversal.
 
 ```
 CausalAnalyzer
-  .recordIntervention(change, timestamp) → void   # Record a contract/scope change
-  .correlate() → CausalLink[]                     # Find correlations between changes and violation spikes
-  .getImpact(contractChange) → ImpactReport       # Predict impact of a proposed change
+  .recordIntervention(change, timestamp) → void   # INSERT INTO nodes (type='intervention') + edges
+  .correlate() → CausalLink[]                     # Recursive CTE traversal of caused_by edges
+  .getImpact(contractChange) → ImpactReport       # Predict impact via historical edge patterns
 ```
 
-**Correlation algorithm:**
-```
-1. After a contract change (scope expansion, rule addition, etc.):
-   a. Record the intervention with timestamp
-   b. Compare violation counts before/after (within a time window)
-   c. If significant increase: create caused_by edge with confidence
-2. For impact prediction:
-   a. Find similar past interventions
-   b. Aggregate their outcomes
-   c. Report expected violation count change
+**Correlation algorithm (SQL CTE):**
+```sql
+WITH RECURSIVE impact AS (
+  SELECT target as node_id, 1 as depth
+  FROM edges WHERE source = ? AND relation = 'caused_by'
+  UNION ALL
+  SELECT e.target, i.depth + 1
+  FROM edges e JOIN impact i ON e.source = i.node_id
+  WHERE e.relation = 'caused_by' AND i.depth < 10
+)
+SELECT * FROM impact;
 ```
 
 ---
@@ -335,79 +371,108 @@ CausalAnalyzer
 
 Find all files that a rule applies to:
 
-```cypher
-MATCH (r:Rule {id: 'SEC-001'})-[:SCOPES_TO]->(f:File)
-RETURN f.path
+```sql
+SELECT n.* FROM nodes n
+  JOIN edges e ON n.id = e.target
+  WHERE e.source = ? AND e.relation = 'scopes_to'
 ```
 
 ### 2. Fix Suggestion
 
 Find the best fix for a violation:
 
-```cypher
-MATCH (s:Skill)
-WHERE s.rule_ids CONTAINS 'SEC-003'
-  AND s.confidence >= 0.7
-RETURN s.fix_template, s.confidence, s.uses
-ORDER BY s.confidence DESC
-LIMIT 1
+```sql
+SELECT f.* FROM nodes f
+  JOIN edges e ON f.id = e.source
+  WHERE e.target = ? AND e.relation = 'fixed_by'
+    AND json_extract(f.properties, '$.confidence') >= 0.7
+  ORDER BY json_extract(f.properties, '$.confidence') DESC
+  LIMIT 1
 ```
 
 ### 3. Impact Analysis
 
-Show what would be affected by changing a contract:
+Show what would be affected by changing a contract (recursive CTE):
 
-```cypher
-MATCH (c:Contract {id: 'security_defaults'})-[:HAS_RULE]->(r:Rule)-[:SCOPES_TO]->(f:File)
-OPTIONAL MATCH (r)-[:VIOLATED_IN]->(vf:File)
-RETURN r.id, collect(DISTINCT f.path) AS scoped_files,
-       collect(DISTINCT vf.path) AS violated_files
+```sql
+WITH RECURSIVE impact AS (
+  SELECT e.target as node_id, 1 as depth, e.relation
+  FROM edges e WHERE e.source = ? AND e.relation IN ('has_rule', 'scopes_to')
+  UNION ALL
+  SELECT e2.target, i.depth + 1, e2.relation
+  FROM edges e2 JOIN impact i ON e2.source = i.node_id
+  WHERE i.depth < 5
+)
+SELECT n.*, i.depth FROM nodes n JOIN impact i ON n.id = i.node_id
 ```
 
 ### 4. Compliance Trending
 
 Show violation counts over time:
 
-```cypher
-MATCH (v:Violation)
-WHERE v.timestamp > $since
-RETURN date(v.timestamp) AS day, count(v) AS violations
-ORDER BY day
+```sql
+SELECT date(created_at, 'unixepoch') as day, count(*) as violations
+  FROM nodes
+  WHERE type = 'violation'
+    AND json_extract(properties, '$.timestamp') > ?
+  GROUP BY day
+  ORDER BY day
 ```
 
 ### 5. Agent Routing
 
 Find the best agent for a violation type:
 
-```cypher
-MATCH (a:Agent)-[:FIXED]->(f:Fix)-[:FIXED_BY]-(v:Violation)
-WHERE v.rule_id = $ruleId AND f.outcome = 'success'
-RETURN a.name, count(f) AS successful_fixes, a.success_rate
-ORDER BY a.success_rate DESC
+```sql
+SELECT n.id, n.properties,
+       count(e2.id) as successful_fixes
+  FROM nodes n
+  JOIN edges e ON n.id = e.source AND e.relation = 'performed_fix'
+  JOIN nodes fix ON e.target = fix.id AND fix.type = 'fix'
+  JOIN edges e2 ON fix.id = e2.source
+  WHERE json_extract(fix.properties, '$.outcome') = 'success'
+    AND n.type = 'agent'
+  GROUP BY n.id
+  ORDER BY successful_fixes DESC
 ```
 
 ### 6. Most Violated Rules
 
-```cypher
-MATCH (r:Rule)-[:VIOLATED_IN]->(f:File)
-RETURN r.id, r.description, count(f) AS file_count
-ORDER BY file_count DESC
-LIMIT 10
+```sql
+SELECT e.source as rule_id,
+       json_extract(n.properties, '$.description') as description,
+       count(DISTINCT e.target) as file_count
+  FROM edges e
+  JOIN nodes n ON e.source = n.id
+  WHERE e.relation = 'violated_in'
+  GROUP BY e.source
+  ORDER BY file_count DESC
+  LIMIT 10
 ```
 
 ### 7. Violation Cascade Detection
 
-```cypher
-MATCH (v1:Violation)-[:CAUSED_BY]->(v2:Violation)
-RETURN v1.rule_id, v2.rule_id, v1.file, v2.file
+```sql
+SELECT e.source, e.target,
+       json_extract(n1.properties, '$.rule_id') as cause_rule,
+       json_extract(n2.properties, '$.rule_id') as effect_rule
+  FROM edges e
+  JOIN nodes n1 ON e.source = n1.id
+  JOIN nodes n2 ON e.target = n2.id
+  WHERE e.relation = 'caused_by'
 ```
 
 ### 8. Deferred Rules
 
-```cypher
-MATCH (r:Rule)-[d:DEFERRED]->(f:File)
-WHERE d.expires > datetime()
-RETURN r.id, f.path, d.reason, d.expires
+```sql
+SELECT n.id as rule_id,
+       e.target as file_id,
+       json_extract(e.properties, '$.reason') as reason,
+       json_extract(e.properties, '$.expires') as expires
+  FROM edges e
+  JOIN nodes n ON e.source = n.id
+  WHERE e.relation = 'deferred'
+    AND json_extract(e.properties, '$.expires') > strftime('%s','now')
 ```
 
 ---
@@ -486,7 +551,7 @@ See DDD-003 "Agent Graph Integration" section for details.
 
 - Full lifecycle: init → enforce → record violations → fix → record fix → query suggestions
 - Graph stays in sync after contract YAML changes
-- Cypher queries return correct results for each query pattern
+- SQL queries return correct results for each query pattern
 - MCP tools return graph data in expected format
 
 ### Property Tests

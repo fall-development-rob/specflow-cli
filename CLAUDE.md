@@ -29,7 +29,7 @@ agents/                 # 26 agent prompt templates (markdown + YAML frontmatter
 .specflow/contracts/    # Active project contracts (YAML)
 docs/                   # Guides, reference, architecture (ADRs/PRDs/DDDs)
 templates/contracts/    # Default contract templates (YAML)
-templates/ci/           # GitHub Actions workflow templates
+agents/ci-builder.md    # CI pipeline generator agent
 tests/                  # Jest test suites (contracts, hooks, schema, compile)
 scripts/                # Install script, Node.js compile/verify helpers
 ```
@@ -208,7 +208,7 @@ than inventing a fresh layout.
 | `agents/` | `scripts/agents/` | Subagent library for orchestration and execution |
 | `templates/contracts/*.yml` | `.specflow/contracts/` | Reusable default contracts |
 | `hooks/` via `specflow update` | `.claude/hooks/` and `.git/hooks/` | Local enforcement and journey verification |
-| `templates/ci/*.yml` | `.github/workflows/` | PR and post-merge contract enforcement |
+| `agents/ci-builder.md` | Use agent to generate CI | Project-specific CI pipeline generation |
 | `CLAUDE-MD-TEMPLATE.md` | `CLAUDE.md` | Project-specific operating instructions |
 
 ### Source Repo Maintenance Notes

@@ -344,7 +344,7 @@ Next enforce: suggest this Skill for similar violations
 
 ### Backward Compatibility
 
-The graph integration is additive. If `.specflow/knowledge.rvf` doesn't exist:
+The graph integration is additive. If `.specflow/knowledge.db` doesn't exist:
 
 - `specflow enforce` works exactly as before (no suggestions, no recording)
 - Hooks work exactly as before
