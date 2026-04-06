@@ -420,6 +420,115 @@ export function scanFiles(contractsDir: string, targetDir: string): NapiScanResu
   return scanFilesJs(contractsDir, targetDir);
 }
 
+/**
+ * Scan a specific list of files against contracts.
+ * Used by --staged and --diff to avoid full directory scanning.
+ * filePaths must be absolute; projectRoot is used to make them relative for scope matching.
+ */
+export function scanFileList(contractsDir: string, filePaths: string[], projectRoot?: string): NapiScanResult {
+  const contracts = loadContractsJs(contractsDir);
+  const filesScanned = new Set<string>();
+  const violations: NapiViolation[] = [];
+  let rulesChecked = 0;
+  const root = projectRoot || path.dirname(contractsDir);
+
+  for (const contract of contracts) {
+    for (const rule of contract.rules) {
+      rulesChecked++;
+
+      for (const file of filePaths) {
+        // Make path relative to project root for scope matching
+        const relativePath = path.relative(root, file);
+
+        // Check if file matches any scope pattern (using relative path)
+        const inScope = rule.scope.length === 0 || rule.scope.some(s => {
+          if (s.startsWith('!')) return false;
+          const regexStr = s
+            .replace(/\{([^}]+)\}/g, (_, alts: string) => `(${alts.split(',').join('|')})`)
+            .replace(/\./g, '\\.')
+            .replace(/\?/g, '.')
+            .replace(/\*\*\//g, '(.+/)?')
+            .replace(/\*\*/g, '.*')
+            .replace(/\*/g, '[^/]*');
+          return new RegExp('^' + regexStr + '$').test(relativePath);
+        });
+
+        // Also check negation patterns
+        const excluded = rule.scope.some(s => {
+          if (!s.startsWith('!')) return false;
+          const negPattern = s.slice(1);
+          const regexStr = negPattern
+            .replace(/\{([^}]+)\}/g, (_, alts: string) => `(${alts.split(',').join('|')})`)
+            .replace(/\./g, '\\.')
+            .replace(/\?/g, '.')
+            .replace(/\*\*\//g, '(.+/)?')
+            .replace(/\*\*/g, '.*')
+            .replace(/\*/g, '[^/]*');
+          return new RegExp('^' + regexStr + '$').test(relativePath);
+        });
+
+        if (!inScope || excluded) continue;
+
+        filesScanned.add(file);
+        let content: string;
+        try {
+          content = fs.readFileSync(file, 'utf-8');
+        } catch {
+          continue;
+        }
+
+        for (const pattern of rule.forbidden) {
+          const lines = content.split('\n');
+          for (let i = 0; i < lines.length; i++) {
+            pattern.regex.lastIndex = 0;
+            const match = pattern.regex.exec(lines[i]);
+            if (match) {
+              violations.push({
+                contractId: contract.id,
+                ruleId: rule.id,
+                ruleTitle: rule.title,
+                file,
+                line: i + 1,
+                column: (match.index || 0) + 1,
+                matchedText: match[0],
+                message: pattern.message,
+                pattern: pattern.raw,
+                kind: 'Forbidden',
+              });
+            }
+          }
+        }
+
+        for (const pattern of rule.required) {
+          pattern.regex.lastIndex = 0;
+          if (!pattern.regex.test(content)) {
+            violations.push({
+              contractId: contract.id,
+              ruleId: rule.id,
+              ruleTitle: rule.title,
+              file,
+              line: 0,
+              column: 0,
+              matchedText: '',
+              message: pattern.message,
+              pattern: pattern.raw,
+              kind: 'MissingRequired',
+            });
+          }
+          pattern.regex.lastIndex = 0;
+        }
+      }
+    }
+  }
+
+  return {
+    violations,
+    filesScanned: filesScanned.size,
+    contractsLoaded: contracts.length,
+    rulesChecked,
+  };
+}
+
 export function checkSnippet(
   contractsDir: string,
   code: string,

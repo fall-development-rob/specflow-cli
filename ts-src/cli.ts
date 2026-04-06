@@ -44,6 +44,8 @@ Commands:
                                        [--contracts-dir] [--tests-dir]
   doctor [dir] [--json] [--fix]       Run health checks
   enforce [dir] [--json] [--contract] Enforce contracts against files
+                [--staged] [--diff <branch>]
+                [--suggest]
   update [dir] [--ci]                 Update hooks and settings
   status [dir] [--json] [--history]    Show compliance dashboard
                                        [--since <date>]
@@ -102,6 +104,9 @@ async function main() {
         dir: getPositional(),
         json: hasFlag('--json'),
         contract: getFlagValue('--contract'),
+        staged: hasFlag('--staged'),
+        diff: getFlagValue('--diff'),
+        suggest: hasFlag('--suggest'),
       });
       break;
     }

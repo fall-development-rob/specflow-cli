@@ -40,10 +40,14 @@ export function toolDefinitions(): ToolDefinition[] {
     },
     {
       name: 'specflow_get_violations',
-      description: 'Scan a file or directory for contract violations',
+      description: 'Scan a file or directory for contract violations. Supports incremental scanning via staged/diff params.',
       inputSchema: {
         type: 'object',
-        properties: { path: { type: 'string', description: 'File or directory path to scan' } },
+        properties: {
+          path: { type: 'string', description: 'File or directory path to scan' },
+          staged: { type: 'boolean', description: 'Scan only git-staged files' },
+          diff: { type: 'string', description: 'Scan only files changed vs this branch' },
+        },
         required: ['path'],
       },
     },
@@ -250,7 +254,26 @@ function handleGetViolations(args: any): ToolCallResult {
 
   try {
     const config = loadConfig();
-    const result = scanFiles(config.contractsDir, safePath);
+    let result;
+
+    if (args.staged || args.diff) {
+      // Delegate to the enforce command's incremental logic
+      const { execSync } = require('child_process');
+      const flags = [];
+      if (args.staged) flags.push('--staged');
+      if (args.diff) flags.push('--diff', args.diff);
+      flags.push('--json');
+
+      const cliPath = path.join(__dirname, '..', 'cli.js');
+      const output = execSync(`node ${cliPath} enforce ${safePath} ${flags.join(' ')}`, {
+        encoding: 'utf-8',
+        cwd: safePath,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+      return toolResultText(output);
+    }
+
+    result = scanFiles(config.contractsDir, safePath);
     const violationList = result.violations.map(v => ({
       contract: v.contractId,
       rule: v.ruleId,

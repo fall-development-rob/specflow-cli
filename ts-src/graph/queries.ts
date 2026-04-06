@@ -3,7 +3,9 @@
  * impact analysis, compliance trending, and violation hotspots.
  */
 
-import { Database, query } from './database';
+import * as fs from 'fs';
+import * as path from 'path';
+import { Database, query, upsertNode, saveDb } from './database';
 
 /**
  * Get contracts and rules that apply to a given file path.
@@ -90,6 +92,26 @@ export function suggestFix(database: Database, ruleId: string, contractId?: stri
       description: props.description,
       method: props.method,
       code_after: props.code_after,
+    };
+  }
+
+  // Fall back to seeded fix suggestions from contract examples
+  const seeded = query(database,
+    `SELECT id, properties FROM nodes
+     WHERE type = 'fix_suggestion'
+     AND json_extract(properties, '$.rule_id') = ?
+     LIMIT 1`,
+    [ruleId]
+  );
+
+  if (seeded.length > 0) {
+    const props = JSON.parse(seeded[0].properties as string);
+    return {
+      source: 'contract_example',
+      id: seeded[0].id,
+      example_compliant: props.example_compliant,
+      confidence: props.confidence || 0.6,
+      successes: props.successes || 1,
     };
   }
 
@@ -247,6 +269,65 @@ export interface HotspotReport {
  */
 export function getMostViolatedRules(database: Database, limit: number = 10): Array<{ ruleId: string; contractId: string; count: number }> {
   return getViolationHotspots(database, limit).byRule;
+}
+
+/**
+ * Seed fix suggestions from contract example_compliant fields.
+ * Called on first enforce --suggest if graph has zero fix nodes.
+ * Idempotent: skips if fix nodes already exist.
+ */
+export function seedFixSuggestions(database: Database, contractsDir: string): void {
+  // Check if fix nodes already exist
+  const existing = query(database,
+    `SELECT count(*) as count FROM nodes WHERE type = 'fix_suggestion'`
+  );
+  if (existing.length > 0 && (existing[0].count as number) > 0) {
+    return; // Already seeded
+  }
+
+  // Load contract YAML files and extract example_compliant
+  let yaml: any;
+  try {
+    yaml = require('js-yaml');
+  } catch {
+    return; // js-yaml not available
+  }
+
+  const files = fs.readdirSync(contractsDir).filter(f => f.endsWith('.yml') || f.endsWith('.yaml'));
+
+  for (const file of files) {
+    try {
+      const content = fs.readFileSync(path.join(contractsDir, file), 'utf-8');
+      const parsed = yaml.load(content);
+      const contractId = parsed?.contract_meta?.id || '';
+      const rules = parsed?.rules?.non_negotiable || [];
+
+      for (const rule of rules) {
+        const ruleId = rule.id;
+        const exampleCompliant = rule.behavior?.example_compliant;
+        if (!ruleId || !exampleCompliant) continue;
+
+        const text = typeof exampleCompliant === 'string' ? exampleCompliant.trim() : '';
+        if (!text) continue;
+
+        const nodeId = `fix_suggestion:${contractId}::${ruleId}`;
+        upsertNode(database, nodeId, 'fix_suggestion', {
+          rule_id: ruleId,
+          contract_id: contractId,
+          example_compliant: text,
+          confidence: 0.6,
+          successes: 1,
+          total: 1,
+          source: 'contract_example',
+          seeded_at: Math.floor(Date.now() / 1000),
+        });
+      }
+    } catch {
+      // Skip malformed contracts
+    }
+  }
+
+  saveDb(database);
 }
 
 /**
