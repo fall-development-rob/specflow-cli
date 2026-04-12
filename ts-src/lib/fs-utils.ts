@@ -44,8 +44,8 @@ export function isExecutable(filePath: string): boolean {
 export function findSpecflowRoot(): string {
   const candidates = [
     process.cwd(),
-    path.join(process.cwd(), 'node_modules', '@colmbyrne', 'specflow'),
-    path.join(process.cwd(), 'node_modules', 'specflow'),
+    path.join(process.cwd(), 'node_modules', '@robotixai', 'specflow-cli'),
+    path.join(process.cwd(), 'node_modules', 'specflow-cli'),
   ];
 
   for (const candidate of candidates) {

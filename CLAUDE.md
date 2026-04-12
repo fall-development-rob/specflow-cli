@@ -43,7 +43,7 @@ npm test                           # run all 678 tests
 node dist/cli.js doctor            # verify setup
 ```
 
-After `npm install -g @colmbyrne/specflow`, the CLI is available as `specflow` in PATH.
+After `npm install -g @robotixai/specflow-cli`, the CLI is available as `specflow` in PATH.
 
 ---
 
