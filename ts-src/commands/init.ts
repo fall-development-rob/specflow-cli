@@ -13,6 +13,8 @@ import * as readline from 'readline';
 import { ensureDir, copyFile, findSpecflowRoot } from '../lib/fs-utils';
 import { bold, green, cyan } from '../lib/logger';
 import { SpecflowConfig, saveConfig } from '../lib/config';
+import { detect } from '../lib/detect';
+import { generateContracts, generateSummary } from '../lib/generate-contracts';
 
 export interface InitOptions {
   dir?: string;
@@ -20,6 +22,7 @@ export interface InitOptions {
   json?: boolean;
   contractsDir?: string;
   testsDir?: string;
+  skipContracts?: boolean;
 }
 
 /** Prompt the user via readline; returns the default if they press enter. */
@@ -87,7 +90,7 @@ export async function run(options: InitOptions): Promise<void> {
     if (!jsonOutput) console.log('');
 
     // Run init with the gathered config, handling CLAUDE.md separately
-    return doInit(target, config, appendClaudeMd, jsonOutput);
+    return doInit(target, config, appendClaudeMd, jsonOutput, !!options.skipContracts);
   } else {
     // Non-TTY / JSON mode: use defaults silently
     config = {
@@ -98,7 +101,7 @@ export async function run(options: InitOptions): Promise<void> {
     };
   }
 
-  return doInit(target, config, true, jsonOutput);
+  return doInit(target, config, true, jsonOutput, !!options.skipContracts);
 }
 
 async function doInit(
@@ -106,6 +109,7 @@ async function doInit(
   config: SpecflowConfig,
   appendClaudeMd: boolean,
   jsonOutput: boolean,
+  skipContracts: boolean = false,
 ): Promise<void> {
   const specflowRoot = findSpecflowRoot();
   const steps: string[] = [];
@@ -131,23 +135,37 @@ async function doInit(
   }
   steps.push('config');
 
-  // 3. Copy default contract templates
-  const templatesDir = path.join(specflowRoot, 'templates', 'contracts');
-  if (fs.existsSync(templatesDir)) {
-    const contractsDir = path.join(target, config.contractsDir);
-    let copied = 0;
-    const files = fs.readdirSync(templatesDir).filter(f => f.endsWith('.yml'));
-    for (const file of files) {
-      const dest = path.join(contractsDir, file);
-      if (!fs.existsSync(dest)) {
-        copyFile(path.join(templatesDir, file), dest);
-        copied++;
-      }
+  // 3. Detect project stack and generate tailored contracts
+  if (!skipContracts) {
+    if (!jsonOutput) {
+      console.log('');
+      console.log(`  Detecting project stack...`);
     }
-    if (!jsonOutput && copied > 0) {
-      console.log(`  ${green('+')} Copied ${copied} default contracts`);
+    const detection = detect(target);
+    if (!jsonOutput) {
+      const parts: string[] = [];
+      if (detection.language) parts.push(detection.language);
+      if (detection.framework) parts.push(detection.framework);
+      if (detection.orm) parts.push(detection.orm);
+      if (parts.length > 0) {
+        console.log(`  ${green('+')} Detected: ${parts.join(', ')}`);
+      } else {
+        console.log(`  ${green('+')} No specific framework detected — generating baseline contracts`);
+      }
+      console.log('');
+    }
+
+    const contractsDir = path.join(target, config.contractsDir);
+    const genResult = generateContracts(detection, contractsDir, { jsonOutput });
+
+    if (!jsonOutput) {
+      console.log(`  ${green('+')} ${generateSummary(detection, genResult)}`);
     }
     steps.push('contracts');
+  } else {
+    if (!jsonOutput) {
+      console.log(`  Skipped contract generation (--skip-contracts)`);
+    }
   }
 
   // 4. Generate or append to CLAUDE.md
