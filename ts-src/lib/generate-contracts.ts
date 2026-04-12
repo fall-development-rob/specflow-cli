@@ -27,9 +27,36 @@ interface RuleDef {
   exampleCompliant: string;
 }
 
+// ── Scope helpers ──────────────────────────────────────────────────
+
+/** Expand source roots into scope globs with optional test exclusions. */
+function scopeGlobs(roots: string[], ext: string, excludeTests: boolean = true): string[] {
+  const globs: string[] = [];
+  for (const root of roots) {
+    globs.push(`${root}/**/*.${ext}`);
+  }
+  if (excludeTests) {
+    for (const root of roots) {
+      globs.push(`!${root}/**/*.test.*`);
+      globs.push(`!${root}/**/__tests__/**`);
+    }
+  }
+  return globs;
+}
+
+/** Scope globs for route-specific files. */
+function routeGlobs(roots: string[], ext: string): string[] {
+  const globs: string[] = [];
+  for (const root of roots) {
+    globs.push(`${root}/**/routes/**/*.${ext}`);
+    globs.push(`${root}/**/api/**/*.${ext}`);
+  }
+  return globs;
+}
+
 // ── Contract registry keyed by detection signal ────────────────────
 
-function typescriptContracts(): ContractDef[] {
+function typescriptContracts(roots: string[]): ContractDef[] {
   return [
     {
       filename: 'typescript_no_any.yml',
@@ -40,7 +67,7 @@ function typescriptContracts(): ContractDef[] {
         {
           id: 'TS-001',
           title: 'Forbid "any" type annotations',
-          scope: ['src/**/*.{ts,tsx}', '!src/**/*.test.*', '!src/**/__tests__/**'],
+          scope: scopeGlobs(roots, '{ts,tsx}'),
           forbidden: [
             { pattern: '/:\\s*any[\\s;,)]/i', message: 'Avoid "any" type — use a specific type or "unknown"' },
             { pattern: '/as\\s+any/i', message: 'Avoid "as any" cast — use proper type narrowing' },
@@ -59,7 +86,7 @@ function typescriptContracts(): ContractDef[] {
         {
           id: 'TS-002',
           title: 'Forbid console.log in production source code',
-          scope: ['src/**/*.{ts,tsx}', '!src/**/*.test.*', '!src/**/__tests__/**'],
+          scope: scopeGlobs(roots, '{ts,tsx}'),
           forbidden: [
             { pattern: '/console\\.(log|warn|error|debug|info)\\s*\\(/i', message: 'Remove console statement — use a structured logger' },
           ],
@@ -71,7 +98,7 @@ function typescriptContracts(): ContractDef[] {
   ];
 }
 
-function expressContracts(): ContractDef[] {
+function expressContracts(roots: string[]): ContractDef[] {
   return [
     {
       filename: 'express_auth_routes.yml',
@@ -82,7 +109,7 @@ function expressContracts(): ContractDef[] {
         {
           id: 'EXPRESS-001',
           title: 'API routes should reference auth middleware',
-          scope: ['src/**/routes/**/*.{ts,js}', 'src/**/api/**/*.{ts,js}'],
+          scope: routeGlobs(roots, '{ts,js}'),
           forbidden: [
             { pattern: '/router\\.(get|post|put|patch|delete)\\s*\\(\\s*[\'"][^)]*,\\s*(async\\s+)?\\(req/i', message: 'Route handler appears to lack auth middleware — add authenticate()' },
           ],
@@ -100,7 +127,7 @@ function expressContracts(): ContractDef[] {
         {
           id: 'EXPRESS-002',
           title: 'Forbid spreading req.body into objects',
-          scope: ['src/**/*.{ts,js}', '!src/**/*.test.*'],
+          scope: scopeGlobs(roots, '{ts,js}'),
           forbidden: [
             { pattern: '/\\.\\.\\.req\\.body/i', message: 'Do not spread req.body — destructure specific fields to prevent mass assignment' },
           ],
@@ -118,7 +145,7 @@ function expressContracts(): ContractDef[] {
         {
           id: 'EXPRESS-003',
           title: 'Async route handlers must have error handling',
-          scope: ['src/**/routes/**/*.{ts,js}', 'src/**/api/**/*.{ts,js}'],
+          scope: routeGlobs(roots, '{ts,js}'),
           forbidden: [
             { pattern: '/res\\.status\\(500\\)\\.json\\(\\{\\s*error:\\s*err\\.message/i', message: 'Do not leak internal error messages to clients — use generic error responses' },
           ],
@@ -130,7 +157,7 @@ function expressContracts(): ContractDef[] {
   ];
 }
 
-function drizzleContracts(): ContractDef[] {
+function drizzleContracts(roots: string[]): ContractDef[] {
   return [
     {
       filename: 'drizzle_no_type_bypass.yml',
@@ -141,7 +168,7 @@ function drizzleContracts(): ContractDef[] {
         {
           id: 'ORM-001',
           title: 'Forbid "as any" casts on Drizzle queries',
-          scope: ['src/**/*.{ts,tsx}', '!src/**/*.test.*'],
+          scope: scopeGlobs(roots, '{ts,tsx}'),
           forbidden: [
             { pattern: '/(?:db|drizzle)\\.[a-zA-Z]+.*as\\s+any/i', message: 'Do not bypass Drizzle type safety with "as any"' },
           ],
@@ -159,7 +186,7 @@ function drizzleContracts(): ContractDef[] {
         {
           id: 'ORM-002',
           title: 'Forbid raw SQL string interpolation',
-          scope: ['src/**/*.{ts,tsx,js,jsx}', '!src/**/*.test.*'],
+          scope: scopeGlobs(roots, '{ts,tsx,js,jsx}'),
           forbidden: [
             { pattern: '/sql`[^`]*\\$\\{(?!sql)/i', message: 'SQL injection risk — use sql placeholder, not string interpolation' },
           ],
@@ -171,7 +198,7 @@ function drizzleContracts(): ContractDef[] {
   ];
 }
 
-function reactContracts(): ContractDef[] {
+function reactContracts(roots: string[]): ContractDef[] {
   return [
     {
       filename: 'react_no_inline_styles.yml',
@@ -182,7 +209,7 @@ function reactContracts(): ContractDef[] {
         {
           id: 'REACT-001',
           title: 'Forbid inline style objects in JSX',
-          scope: ['src/**/*.{tsx,jsx}'],
+          scope: scopeGlobs(roots, '{tsx,jsx}', false),
           forbidden: [
             { pattern: '/style\\s*=\\s*\\{\\{/i', message: 'Inline style detected — use CSS classes, modules, or styled-components' },
           ],
@@ -200,7 +227,7 @@ function reactContracts(): ContractDef[] {
         {
           id: 'REACT-002',
           title: 'Forbid "any" in React component props',
-          scope: ['src/**/*.{tsx}'],
+          scope: scopeGlobs(roots, 'tsx', false),
           forbidden: [
             { pattern: '/Props\\s*=\\s*\\{[^}]*:\\s*any/i', message: 'Prop type uses "any" — define a specific type' },
           ],
@@ -212,7 +239,7 @@ function reactContracts(): ContractDef[] {
   ];
 }
 
-function prismaContracts(): ContractDef[] {
+function prismaContracts(roots: string[]): ContractDef[] {
   return [
     {
       filename: 'prisma_no_raw_sql.yml',
@@ -223,7 +250,7 @@ function prismaContracts(): ContractDef[] {
         {
           id: 'PRISMA-001',
           title: 'Forbid raw SQL queries via Prisma',
-          scope: ['src/**/*.{ts,tsx,js,jsx}', '!src/**/*.test.*'],
+          scope: scopeGlobs(roots, '{ts,tsx,js,jsx}'),
           forbidden: [
             { pattern: '/\\$queryRaw\\s*`/i', message: 'Avoid $queryRaw — use Prisma client methods for type safety' },
             { pattern: '/\\$executeRaw\\s*`/i', message: 'Avoid $executeRaw — use Prisma client methods for type safety' },
@@ -378,7 +405,7 @@ function envContracts(): ContractDef[] {
   ];
 }
 
-function securityBaselineContracts(): ContractDef[] {
+function securityBaselineContracts(roots: string[]): ContractDef[] {
   return [
     {
       filename: 'security_secrets.yml',
@@ -389,7 +416,7 @@ function securityBaselineContracts(): ContractDef[] {
         {
           id: 'SEC-001',
           title: 'No hardcoded secrets in source code',
-          scope: ['src/**/*.{ts,js,tsx,jsx,py,go}', '!src/**/*.test.*', '!src/**/__tests__/**'],
+          scope: scopeGlobs(roots, '{ts,js,tsx,jsx,py,go}'),
           forbidden: [
             { pattern: '/(password|secret|api_key|apikey|token)\\s*[:=]\\s*[\'"][^\'"]{8,}[\'"]/i', message: 'Hardcoded secret detected — use environment variable' },
             { pattern: '/sk_live_[a-zA-Z0-9]{20,}/', message: 'Stripe live key hardcoded — use env var' },
@@ -410,7 +437,7 @@ function securityBaselineContracts(): ContractDef[] {
         {
           id: 'SEC-002',
           title: 'Forbid eval and Function constructor',
-          scope: ['src/**/*.{ts,js,tsx,jsx}', '!src/**/*.test.*'],
+          scope: scopeGlobs(roots, '{ts,js,tsx,jsx}'),
           forbidden: [
             { pattern: '/\\beval\\s*\\(/i', message: 'eval() is a code injection risk — use JSON.parse or safe alternatives' },
             { pattern: '/new\\s+Function\\s*\\(/i', message: 'Function constructor is equivalent to eval — avoid dynamic code execution' },
@@ -506,13 +533,14 @@ export function generateContracts(
 ): GenerateResult {
   const jsonOutput = options?.jsonOutput ?? false;
   const defs: ContractDef[] = [];
+  const roots = detection.sourceRoots;
 
   // Always include security baseline
-  defs.push(...securityBaselineContracts());
+  defs.push(...securityBaselineContracts(roots));
 
   // Language-specific
   if (detection.language === 'typescript') {
-    defs.push(...typescriptContracts());
+    defs.push(...typescriptContracts(roots));
   }
   if (detection.language === 'go') {
     defs.push(...goContracts());
@@ -520,10 +548,10 @@ export function generateContracts(
 
   // Framework-specific
   if (detection.framework === 'express' || detection.framework === 'fastify' || detection.framework === 'koa' || detection.framework === 'hono') {
-    defs.push(...expressContracts());
+    defs.push(...expressContracts(roots));
   }
   if (detection.framework === 'react' || detection.framework === 'next') {
-    defs.push(...reactContracts());
+    defs.push(...reactContracts(roots));
   }
   if (detection.framework === 'django') {
     defs.push(...djangoContracts());
@@ -531,10 +559,10 @@ export function generateContracts(
 
   // ORM-specific
   if (detection.orm === 'drizzle') {
-    defs.push(...drizzleContracts());
+    defs.push(...drizzleContracts(roots));
   }
   if (detection.orm === 'prisma') {
-    defs.push(...prismaContracts());
+    defs.push(...prismaContracts(roots));
   }
 
   // Env documentation

@@ -17,6 +17,8 @@ export interface DetectionResult {
   hasADRs: boolean;
   adrFiles: string[];
   hasExistingContracts: boolean;
+  /** Detected source root directories (e.g. ["src"], ["apps/api/src", "apps/web/src"], ["lib"]). */
+  sourceRoots: string[];
   sourcePatterns: {
     hasRoutes: boolean;
     hasServices: boolean;
@@ -84,6 +86,48 @@ function findADRFiles(dir: string): string[] {
   }
 
   return adrFiles;
+}
+
+/**
+ * Detect actual source root directories.
+ * Handles flat layouts (src/), monorepos (apps/api/src/, packages/domain/src/),
+ * and non-standard roots (app/, lib/).
+ */
+function detectSourceRoots(dir: string): string[] {
+  const roots: string[] = [];
+
+  // Check monorepo containers first — apps/*/src, packages/*/src
+  for (const container of ['apps', 'packages']) {
+    const containerPath = path.join(dir, container);
+    if (!fs.existsSync(containerPath)) continue;
+    try {
+      const entries = fs.readdirSync(containerPath);
+      for (const entry of entries) {
+        const entryPath = path.join(containerPath, entry);
+        if (!fs.statSync(entryPath).isDirectory()) continue;
+        // Check for src/ inside each workspace package
+        const srcInside = path.join(entryPath, 'src');
+        if (fs.existsSync(srcInside) && fs.statSync(srcInside).isDirectory()) {
+          roots.push(`${container}/${entry}/src`);
+        }
+      }
+    } catch { /* skip unreadable */ }
+  }
+
+  // Check standard flat source directories
+  for (const candidate of ['src', 'app', 'lib']) {
+    const candidatePath = path.join(dir, candidate);
+    if (fs.existsSync(candidatePath) && fs.statSync(candidatePath).isDirectory()) {
+      roots.push(candidate);
+    }
+  }
+
+  // Fallback: if nothing found, default to src so contracts still have a scope
+  if (roots.length === 0) {
+    roots.push('src');
+  }
+
+  return roots;
 }
 
 /** Scan src/ for common structural patterns. */
@@ -236,6 +280,7 @@ export function detect(dir: string): DetectionResult {
     hasADRs: adrFiles.length > 0,
     adrFiles,
     hasExistingContracts,
+    sourceRoots: detectSourceRoots(target),
     sourcePatterns: detectSourcePatterns(target),
     configFiles: {
       tsconfig: fs.existsSync(path.join(target, 'tsconfig.json')),
