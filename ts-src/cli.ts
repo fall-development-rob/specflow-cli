@@ -44,6 +44,7 @@ Commands:
                                        [--contracts-dir] [--tests-dir]
                                        [--skip-contracts]
   generate [dir] [--json]             Re-detect stack and generate contracts
+                 [--contracts-dir]
   doctor [dir] [--json] [--fix]       Run health checks
   enforce [dir] [--json] [--contract] Enforce contracts against files
                 [--staged] [--diff <branch>]
@@ -102,6 +103,7 @@ async function main() {
       await generateRun({
         dir: getPositional(),
         json: hasFlag('--json'),
+        contractsDir: getFlagValue('--contracts-dir'),
       });
       break;
     }
