@@ -425,6 +425,17 @@ function securityBaselineContracts(): ContractDef[] {
 
 // ── YAML generation ────────────────────────────────────────────────
 
+/** Escape double quotes inside a YAML double-quoted string. */
+function yamlEscape(s: string): string {
+  return s.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
+/** Indent every line of a multi-line string for YAML block scalar. */
+function indentBlock(s: string, spaces: number): string {
+  const pad = ' '.repeat(spaces);
+  return s.split('\n').map(line => pad + line).join('\n');
+}
+
 function renderContractYaml(def: ContractDef): string {
   const rulesYaml = def.rules.map(rule => {
     const scopeLines = rule.scope.map(s => `        - "${s}"`).join('\n');
@@ -432,26 +443,29 @@ function renderContractYaml(def: ContractDef): string {
     let behaviorYaml = '';
     if (rule.forbidden && rule.forbidden.length > 0) {
       const patterns = rule.forbidden.map(p =>
-        `          - pattern: ${p.pattern}\n            message: "${p.message}"`
+        `          - pattern: ${p.pattern}\n            message: "${yamlEscape(p.message)}"`
       ).join('\n');
       behaviorYaml += `        forbidden_patterns:\n${patterns}\n`;
     }
     if (rule.required && rule.required.length > 0) {
       const patterns = rule.required.map(p =>
-        `          - pattern: ${p.pattern}\n            message: "${p.message}"`
+        `          - pattern: ${p.pattern}\n            message: "${yamlEscape(p.message)}"`
       ).join('\n');
       behaviorYaml += `        required_patterns:\n${patterns}\n`;
     }
 
+    const violationBlock = indentBlock(rule.exampleViolation, 10).trimStart();
+    const compliantBlock = indentBlock(rule.exampleCompliant, 10).trimStart();
+
     return `    - id: ${rule.id}
-      title: "${rule.title}"
+      title: "${yamlEscape(rule.title)}"
       scope:
 ${scopeLines}
       behavior:
 ${behaviorYaml}        example_violation: |
-          ${rule.exampleViolation}
+          ${violationBlock}
         example_compliant: |
-          ${rule.exampleCompliant}`;
+          ${compliantBlock}`;
   }).join('\n\n');
 
   return `contract_meta:
