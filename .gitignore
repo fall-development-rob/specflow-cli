@@ -37,3 +37,6 @@ node_modules/
 .mcp.json
 .hive-mind/
 ruflo/
+.specflow/knowledge.db
+.specflow/baseline.json
+.claude/.defer-journal
