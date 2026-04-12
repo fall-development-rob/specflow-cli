@@ -232,7 +232,33 @@ async function doInit(
     steps.push('settings');
   }
 
-  // 7. Create .specflow/baseline.json
+  // 7. Update .gitignore with specflow entries
+  const gitignorePath = path.join(target, '.gitignore');
+  const specflowIgnores = [
+    '.specflow/knowledge.db',
+    '.specflow/baseline.json',
+    '.claude/.defer-journal',
+  ];
+  const specflowMarker = '# Specflow';
+  if (fs.existsSync(gitignorePath)) {
+    const existing = fs.readFileSync(gitignorePath, 'utf-8');
+    if (!existing.includes(specflowMarker)) {
+      const lines = specflowIgnores.filter(entry => !existing.includes(entry));
+      if (lines.length > 0) {
+        fs.appendFileSync(gitignorePath, `\n${specflowMarker}\n${lines.join('\n')}\n`);
+        if (!jsonOutput) {
+          console.log(`  ${green('+')} Added specflow entries to .gitignore`);
+        }
+      }
+    }
+  } else {
+    fs.writeFileSync(gitignorePath, `${specflowMarker}\n${specflowIgnores.join('\n')}\n`);
+    if (!jsonOutput) {
+      console.log(`  ${green('+')} Created .gitignore with specflow entries`);
+    }
+  }
+
+  // 8. Create .specflow/baseline.json (after gitignore so it's already ignored)
   const baseline = path.join(target, '.specflow', 'baseline.json');
   if (!fs.existsSync(baseline)) {
     fs.writeFileSync(baseline, '{}\n');
