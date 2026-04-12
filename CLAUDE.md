@@ -199,7 +199,7 @@ than inventing a fresh layout.
 ### Recommended Adoption Paths
 
 1. **Project CLAUDE setup:** Use [CLAUDE-MD-TEMPLATE.md](CLAUDE-MD-TEMPLATE.md) when a target repo needs a full, project-specific `CLAUDE.md`.
-2. **CLI install:** Run `npm install -g @specflow/cli` then `specflow init .` to scaffold contracts and hooks.
+2. **CLI install:** Run `npm install -g @robotixai/specflow-cli` then `specflow init .` to scaffold contracts and hooks.
 
 ### What To Copy Into A Target Repository
 
