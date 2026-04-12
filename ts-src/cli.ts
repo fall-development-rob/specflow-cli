@@ -42,6 +42,8 @@ Usage: specflow <command> [options]
 Commands:
   init [dir] [-y|--yes] [--json]      Initialize Specflow in a project
                                        [--contracts-dir] [--tests-dir]
+                                       [--skip-contracts]
+  generate [dir] [--json]             Re-detect stack and generate contracts
   doctor [dir] [--json] [--fix]       Run health checks
   enforce [dir] [--json] [--contract] Enforce contracts against files
                 [--staged] [--diff <branch>]
@@ -53,6 +55,10 @@ Commands:
   compile <csv-file>                  Compile journey contracts
   audit <issue-number>                Audit a GitHub issue
   graph [contracts-dir]               Validate contract graph
+  contract list                        List available contract templates
+  contract create [--template <name>] Create contract from template
+                  [--ai "desc"]       Create contract via Claude CLI
+                  [--yes]             Skip interactive prompts
   agent list [--category] [--json]    List agents
   agent show <name>                   Show agent details
   agent search <query> [--json]       Search agents
@@ -67,6 +73,8 @@ Examples:
   npx specflow-cli init .
   npx specflow-cli doctor
   npx specflow-cli enforce --json
+  npx specflow-cli contract list
+  npx specflow-cli contract create --template no-console-log
   npx specflow-cli audit 500
   npx specflow-cli agent list
 `);
@@ -84,7 +92,40 @@ async function main() {
         json: hasFlag('--json'),
         contractsDir: getFlagValue('--contracts-dir'),
         testsDir: getFlagValue('--tests-dir'),
+        skipContracts: hasFlag('--skip-contracts'),
       });
+      break;
+    }
+
+    case 'generate': {
+      const { run: generateRun } = require('./commands/generate');
+      await generateRun({
+        dir: getPositional(),
+        json: hasFlag('--json'),
+      });
+      break;
+    }
+
+    case 'contract': {
+      const contract = require('./commands/contract');
+      const subcommand = restArgs[0];
+
+      if (!subcommand || subcommand === 'list') {
+        contract.list();
+      } else if (subcommand === 'create') {
+        const subArgs = restArgs.slice(1);
+        const descParts = subArgs.filter((a: string) => !a.startsWith('-'));
+        await contract.create({
+          template: getFlagValue('--template'),
+          ai: hasFlag('--ai'),
+          description: descParts.join(' ') || getFlagValue('--ai'),
+          yes: hasFlag('--yes') || hasFlag('-y'),
+          dir: getFlagValue('--dir'),
+        });
+      } else {
+        console.error(`Unknown contract subcommand: ${subcommand}`);
+        process.exit(1);
+      }
       break;
     }
 
