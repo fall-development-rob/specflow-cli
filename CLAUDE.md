@@ -206,7 +206,7 @@ than inventing a fresh layout.
 | Asset | Destination in target repo | Purpose |
 |------|----------|---------|
 | `agents/` | `scripts/agents/` | Subagent library for orchestration and execution |
-| `templates/contracts/*.yml` | `.specflow/contracts/` | Reusable default contracts |
+| `templates/contracts/*.yml` | `.specflow/contracts/` | Legacy default contracts (init now generates tailored contracts) |
 | `hooks/` via `specflow update` | `.claude/hooks/` and `.git/hooks/` | Local enforcement and journey verification |
 | `agents/ci-builder.md` | Use agent to generate CI | Project-specific CI pipeline generation |
 | `CLAUDE-MD-TEMPLATE.md` | `CLAUDE.md` | Project-specific operating instructions |
@@ -242,6 +242,9 @@ specflow mcp register     # connect to Claude Code
 |------|---------|
 | Health check | `specflow doctor .` |
 | Run contracts | `specflow enforce .` |
+| Re-detect and generate contracts | `specflow generate .` |
+| List contract templates | `specflow contract list` |
+| Create contract from template | `specflow contract create --template no-console-log` |
 | Compliance dashboard | `specflow status .` |
 | Audit an issue | `specflow audit 500` |
 | List agents | `specflow agent list` |

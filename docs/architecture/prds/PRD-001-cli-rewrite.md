@@ -47,7 +47,7 @@ No developer should need to debug a bash script to use a Node.js framework.
    .claude/hooks/           # Claude Code hook scripts
    .specflow/               # State directory
    ```
-3. Copy default contracts (5 YAML files) from templates
+3. Detect project stack and generate tailored contracts (replaces hardcoded defaults)
 4. Generate `tests/helpers/contract-loader.js`
 5. Generate contract schema test from template
 6. Generate or update `package.json` with test scripts
