@@ -102,7 +102,7 @@ Based on the assessment, recommend which contracts to start with:
 
 1. **Install Specflow:**
    ```bash
-   npm install -g @colmbyrne/specflow
+   npm install -g @robotixai/specflow-cli
    specflow init .
    specflow doctor .
    ```
