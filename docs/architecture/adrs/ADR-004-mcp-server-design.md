@@ -72,7 +72,7 @@ specflow mcp register
 # → Runs: claude mcp add specflow -- specflow mcp start
 
 # For npx users (no global install):
-claude mcp add specflow -- npx @colmbyrne/specflow mcp start
+claude mcp add specflow -- npx @robotixai/specflow-cli mcp start
 
 # Unregister
 specflow mcp unregister

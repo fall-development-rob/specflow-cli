@@ -10,7 +10,7 @@
 
 A full end-to-end simulation of the specflow-cli user journey was performed, covering:
 
-1. **Fresh install** — `npm install -g specflow-cli`
+1. **Fresh install** — `npm install -g @robotixai/specflow-cli`
 2. **Project initialization** — `specflow init .` with default and custom configurations
 3. **Double initialization** — running `specflow init .` twice on the same project
 4. **Contract enforcement** — `specflow enforce .` in both human and JSON output modes
@@ -203,13 +203,13 @@ if (!testsDir.endsWith('/e2e') && !testsDir.endsWith('\\e2e')) {
 | **Component** | CLI — help text |
 | **File** | `ts-src/cli.ts` |
 
-**Description:** The CLI help examples still reference `npx @colmbyrne/specflow`, which is the old package name. The current package name is `specflow-cli`.
+**Description:** The CLI help examples still reference `npx @robotixai/specflow-cli`, which is the old package name. The current package name is `specflow-cli`.
 
 **Reproduction:**
 1. Run `specflow --help`
-2. Observe: examples show `npx @colmbyrne/specflow`
+2. Observe: examples show `npx @robotixai/specflow-cli`
 
-**Fix:** Replace all occurrences of `@colmbyrne/specflow` in CLI help strings with `specflow` (global install) or `npx specflow-cli` (npx usage).
+**Fix:** Replace all occurrences of `@robotixai/specflow-cli` in CLI help strings with `specflow` (global install) or `npx specflow-cli` (npx usage).
 
 **Affected docs:** [PRD-001-cli-rewrite.md](prds/PRD-001-cli-rewrite.md)
 

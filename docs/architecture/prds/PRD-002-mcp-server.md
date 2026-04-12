@@ -252,7 +252,7 @@ specflow mcp register
 # claude mcp add specflow -- specflow mcp start
 
 # Or manually:
-claude mcp add specflow -- npx @colmbyrne/specflow mcp start
+claude mcp add specflow -- npx @robotixai/specflow-cli mcp start
 
 # Unregister
 specflow mcp unregister

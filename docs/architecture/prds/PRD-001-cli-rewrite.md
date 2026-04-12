@@ -280,6 +280,6 @@ if (!testsDir.endsWith('/e2e') && !testsDir.endsWith('\\e2e')) {
 **File:** `ts-src/cli.ts`
 **Severity:** LOW — cosmetic, but confusing for new users.
 
-**Problem:** Help examples still reference `npx @colmbyrne/specflow` instead of the current package name.
+**Problem:** Help examples still reference `npx @robotixai/specflow-cli` instead of the current package name.
 
-**Fix:** Update all help text examples to use `specflow` (for global install) or `npx specflow-cli` (for npx usage). Search for all occurrences of `@colmbyrne/specflow` in CLI-facing strings.
+**Fix:** Update all help text examples to use `specflow` (for global install) or `npx specflow-cli` (for npx usage). Search for all occurrences of `@robotixai/specflow-cli` in CLI-facing strings.

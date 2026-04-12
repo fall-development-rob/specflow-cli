@@ -2,7 +2,7 @@
 
 **Goal:** Transform Specflow from a repository of bash scripts and documentation into a standalone, installable CLI tool that any developer can adopt in under 5 minutes.
 
-**Success criteria:** A developer runs `npm install -g @colmbyrne/specflow && specflow init . --wizard && specflow doctor` and has contract enforcement working in their project.
+**Success criteria:** A developer runs `npm install -g @robotixai/specflow-cli && specflow init . --wizard && specflow doctor` and has contract enforcement working in their project.
 
 ---
 
@@ -177,7 +177,7 @@ Specflow v1.0 is a Node.js CLI tool that:
 
 4.1. Write `scripts/install.sh`
   - Check Node.js >= 20, npm >= 9
-  - `npm install -g @colmbyrne/specflow`
+  - `npm install -g @robotixai/specflow-cli`
   - Run `specflow doctor` to verify
   - Optionally register MCP server
   - Colored output, clear error messages
@@ -194,7 +194,7 @@ Specflow v1.0 is a Node.js CLI tool that:
 
 4.4. Publish to npm
   - Test with `npm pack` + `npm install -g ./specflow-1.0.0.tgz`
-  - Publish `@colmbyrne/specflow@1.0.0`
+  - Publish `@robotixai/specflow-cli@1.0.0`
 
 **Exit criteria:** `curl -fsSL <url> | bash` installs Specflow globally and `specflow doctor` passes.
 
@@ -329,7 +329,7 @@ Phases 3 and 4 can run in parallel after Phase 2 completes.
 | 8.4 | MEDIUM | SEC-003 scope too narrow | `templates/contracts/security_defaults.yml` | Expand scope from `src/**/*.{tsx,jsx}` to `src/**/*.{ts,tsx,js,jsx}` + `**/*.html` |
 | 8.5 | MEDIUM | Double init duplicates CLAUDE.md | `ts-src/commands/init.ts` | Use `<!-- specflow-rules-start -->` marker instead of heading-based detection |
 | 8.6 | MEDIUM | Custom testsDir double nesting | `ts-src/commands/init.ts` | Only create `/e2e` subdir if testsDir doesn't already end with `/e2e` |
-| 8.7 | LOW | Help text shows old package name | `ts-src/cli.ts` | Replace `@colmbyrne/specflow` with `specflow` / `npx specflow-cli` in help strings |
+| 8.7 | LOW | Help text shows old package name | `ts-src/cli.ts` | Replace `@robotixai/specflow-cli` with `specflow` / `npx specflow-cli` in help strings |
 
 ### Updated Dependency Graph
 
