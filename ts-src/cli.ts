@@ -54,7 +54,7 @@ Commands:
                                        [--since <date>]
   impact <contract-id> [--json]       Analyze contract change impact
   compile <csv-file>                  Compile journey contracts
-  audit <issue-number>                Audit a GitHub issue
+  audit <issue-number>                Audit an issue for compliance
   graph [contracts-dir]               Validate contract graph
   contract list                        List available contract templates
   contract create [--template <name>] Create contract from template

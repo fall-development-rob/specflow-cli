@@ -81,11 +81,11 @@ export function run(options: UpdateOptions): void {
     ensureDir(gitHooksDir);
     const commitMsgHook = path.join(gitHooksDir, 'commit-msg');
     const hookContent = `#!/bin/sh
-# Specflow commit-msg hook: require issue number in commit message
+# Specflow commit-msg hook: require issue/ticket reference in commit message
 MSG=$(cat "$1")
 if ! echo "$MSG" | grep -qE '#[0-9]+'; then
     echo ""
-    echo "ERROR: Commit message must reference a GitHub issue (e.g. #42)"
+    echo "ERROR: Commit message must reference an issue (e.g. #42)"
     echo "  Your message: $MSG"
     echo ""
     echo 'Usage: git commit -m "feat: description (#42)"'

@@ -12,13 +12,13 @@ Every Specflow session follows this sequence:
 Spec -> Pre-Flight -> Contract -> Test -> Code -> Verify -> Commit
 ```
 
-1. **Spec**: Pick an issue from the project board. Read the full spec including acceptance criteria, Gherkin scenarios, and data-testid requirements.
-2. **Pre-Flight**: Run `specflow doctor .` to verify setup. Check that contracts are loaded and the issue has a journey ID.
-3. **Contract**: Ensure YAML contracts exist for the feature. If not, generate them with the contract-generator agent.
-4. **Test**: Generate or update contract tests (Jest) and journey tests (Playwright) before writing code.
+1. **Spec**: Understand the requirement — from an issue, spec doc, or description.
+2. **Pre-Flight**: Run `specflow doctor .` to verify setup. Check that contracts are loaded.
+3. **Contract**: Ensure YAML contracts exist for the feature. If not, generate them with `specflow generate .` or the contract-generator agent.
+4. **Test**: Generate or update contract tests before writing code.
 5. **Code**: Implement the feature. Contracts enforce patterns at build time.
-6. **Verify**: Run `specflow enforce .` and `npm test`. All contract and journey tests must pass.
-7. **Commit**: Commit with issue reference: `git commit -m "feat: description (#42)"`
+6. **Verify**: Run `specflow enforce .` and `npm test`. All contract tests must pass.
+7. **Commit**: Commit the changes. If issue tracking is enabled, include the issue reference.
 
 **Never skip steps.** The loop is the trust layer.
 
@@ -230,31 +230,28 @@ test_hooks:
 3. Runs relevant Playwright/Jest tests for those journeys
 4. Blocks on test failure (exit 2)
 
-### commit-msg (Git Hook)
+### commit-msg (Git Hook — Optional)
 
-**Fires:** During `git commit`, before the commit is finalized.
+**Fires:** During `git commit`, before the commit is finalized. Only installed if issue tracking is enabled during `specflow init`.
 
 **Action:**
 1. Reads the commit message
 2. Checks for `#<issue-number>` pattern
 3. Rejects commits without issue references
 
-**Without an issue number, journey tests are silently skipped.**
-
 ---
 
 ## Pre-Flight System
 
-Pre-flight runs between dependency mapping and sprint execution. It catches broken specs before code is written.
+Pre-flight checks catch broken specs before code is written.
 
 ### What Gets Checked (6 Lenses)
 
-1. **Spec Completeness** — Does the ticket have acceptance criteria, Gherkin scenarios, data-testid?
+1. **Spec Completeness** — Does the requirement have acceptance criteria?
 2. **Contract Coverage** — Do YAML contracts exist for the feature area?
 3. **Schema Consistency** — Do referenced database tables/columns exist?
-4. **Dependency Resolution** — Are all `Depends on #N` issues closed or in the same wave?
-5. **Test Readiness** — Do test stubs exist for the journey contracts?
-6. **Concurrent User Scenarios** — (Wave scope only) Can parallel agents conflict?
+4. **Dependency Resolution** — Are dependencies resolved?
+5. **Test Readiness** — Do test stubs exist for the contracts?
 
 ### Simulation Status Values
 
@@ -288,12 +285,9 @@ Pre-flight runs between dependency mapping and sprint execution. It catches brok
 All of these must pass before work is considered complete:
 
 1. **Contracts pass**: `specflow enforce .` exits 0
-2. **Tests pass**: `npm test` exits 0 (all Jest suites)
-3. **Journey tests pass**: Playwright E2E tests for affected journeys
-4. **No hardcoded secrets**: SEC-001 through SEC-005 clean
-5. **No eval**: SEC-004 clean
-6. **Issue referenced**: Every commit has `#<issue-number>`
-7. **Pre-flight passed**: Simulation status is `passed` or `passed_with_warnings`
+2. **Tests pass**: `npm test` exits 0 (all test suites)
+3. **No hardcoded secrets**: Security contract rules clean
+4. **Issue referenced** (if enabled): Commits include `#<issue-number>`
 
 ---
 
