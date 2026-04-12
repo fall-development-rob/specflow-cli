@@ -70,13 +70,13 @@ Commands:
   mcp unregister                      Unregister from Claude Code
 
 Examples:
-  npx specflow-cli init .
-  npx specflow-cli doctor
-  npx specflow-cli enforce --json
-  npx specflow-cli contract list
-  npx specflow-cli contract create --template no-console-log
-  npx specflow-cli audit 500
-  npx specflow-cli agent list
+  npx @specflow/cli init .
+  npx @specflow/cli doctor
+  npx @specflow/cli enforce --json
+  npx @specflow/cli contract list
+  npx @specflow/cli contract create --template no-console-log
+  npx @specflow/cli audit 500
+  npx @specflow/cli agent list
 `);
   process.exit(0);
 }

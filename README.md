@@ -17,7 +17,7 @@ Nothing goes in your project root except `CLAUDE.md`. Contracts, tests, and conf
 ## Install
 
 ```bash
-npm install -g specflow-cli
+npm install -g @specflow/cli
 ```
 
 Or via install script:
