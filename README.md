@@ -34,7 +34,7 @@ After `specflow init .`:
 
 ```
 .specflow/
-  contracts/          5 default YAML contracts (security, accessibility, etc.)
+  contracts/          generated contracts tailored to your stack
   tests/e2e/          journey test stubs
   config.json         your path preferences
   knowledge.db        knowledge graph (violations, fixes, trends)
@@ -47,7 +47,7 @@ After `specflow init .`:
 CLAUDE.md              appended, never overwritten
 ```
 
-Init is interactive — asks where you want contracts and tests. Use `-y` for defaults.
+Init detects your stack (language, framework, ORM) and generates contracts matched to it. Use `-y` for defaults, `--skip-contracts` for structure only.
 
 ---
 
@@ -55,7 +55,8 @@ Init is interactive — asks where you want contracts and tests. Use `-y` for de
 
 | Command | What it does |
 |---------|-------------|
-| `specflow init [dir]` | Scaffold contracts, hooks, skill, knowledge graph |
+| `specflow init [dir]` | Detect stack, generate contracts, scaffold hooks and graph |
+| `specflow generate [dir]` | Re-detect stack and regenerate contracts (no re-init) |
 | `specflow doctor [dir]` | 14 health checks across contracts, hooks, graph |
 | `specflow enforce [dir]` | Run contracts against source code, record violations |
 | `specflow status [dir] [--history]` | Compliance dashboard with trends and hotspots |
@@ -64,6 +65,8 @@ Init is interactive — asks where you want contracts and tests. Use `-y` for de
 | `specflow audit <issue>` | Audit a GitHub issue (11 compliance markers) |
 | `specflow compile <csv>` | Compile journey CSV to YAML contracts + test stubs |
 | `specflow graph [dir]` | Validate contract cross-references |
+| `specflow contract list` | List available contract templates |
+| `specflow contract create` | Create contract from template or AI |
 | `specflow agent list` | List all 28 agents by category |
 | `specflow agent show <name>` | Show an agent's full prompt |
 | `specflow agent search <query>` | Search agents |
@@ -169,7 +172,7 @@ Supports GitHub Actions, GitLab CI, Azure Pipelines, CircleCI, and Bitbucket.
 
 **Isn't this just more testing?** No. Tests verify behaviour. Contracts verify architecture. "No localStorage in service workers" survives any refactor.
 
-**What if I don't have a perfect spec?** Start with the 5 default contracts. Your first custom contract can be: whatever we're doing now, don't break it.
+**What if I don't have a perfect spec?** Run `specflow init` — it detects your stack and generates tailored contracts. Your first custom contract can be: whatever we're doing now, don't break it.
 
 **Can LLMs actually follow contracts?** Even if they don't, `specflow enforce` catches it. You don't need the LLM to behave. You need it to be checkable.
 
