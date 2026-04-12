@@ -72,9 +72,9 @@ success "Node.js $NODE_VERSION"
 
 # ─── Install Specflow ────────────────────────────────────────────────────────
 info "Installing Specflow CLI via npm..."
-echo -e "${DIM}  npm install -g specflow-cli${RESET}"
+echo -e "${DIM}  npm install -g @robotixai/specflow-cli${RESET}"
 
-npm install -g specflow-cli
+npm install -g @robotixai/specflow-cli
 
 # ─── Verify Installation ─────────────────────────────────────────────────────
 info "Verifying installation..."
