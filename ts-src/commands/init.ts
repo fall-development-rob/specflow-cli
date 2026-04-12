@@ -66,7 +66,7 @@ export async function run(options: InitOptions): Promise<void> {
     config = {
       contractsDir: options.contractsDir || '.specflow/contracts',
       testsDir: options.testsDir || '.specflow/tests',
-      gitHook: true,
+      gitHook: false,
       claudeHooks: true,
     };
   } else if (!jsonOutput && process.stdin.isTTY) {
@@ -79,7 +79,7 @@ export async function run(options: InitOptions): Promise<void> {
 
     const contractsDir = await prompt(rl, 'Where should contracts live?', '.specflow/contracts');
     const testsDir = await prompt(rl, 'Where should test stubs go?', '.specflow/tests');
-    const gitHook = await promptYesNo(rl, 'Install git commit-msg hook?');
+    const gitHook = await promptYesNo(rl, 'Require issue numbers in commit messages?', false);
     const claudeHooks = await promptYesNo(rl, 'Configure Claude Code hooks?');
     const appendClaudeMd = await promptYesNo(rl, 'Append Specflow rules to CLAUDE.md?');
 
@@ -96,7 +96,7 @@ export async function run(options: InitOptions): Promise<void> {
     config = {
       contractsDir: '.specflow/contracts',
       testsDir: '.specflow/tests',
-      gitHook: true,
+      gitHook: false,
       claudeHooks: true,
     };
   }
@@ -251,11 +251,11 @@ async function doInit(
       const commitMsgHook = path.join(gitHooksDir, 'commit-msg');
       if (!fs.existsSync(commitMsgHook)) {
         const hookContent = `#!/bin/sh
-# Specflow commit-msg hook: require issue number in commit message
+# Specflow commit-msg hook: require issue/ticket reference in commit message
 MSG=$(cat "$1")
 if ! echo "$MSG" | grep -qE '#[0-9]+'; then
     echo ""
-    echo "ERROR: Commit message must reference a GitHub issue (e.g. #42)"
+    echo "ERROR: Commit message must reference an issue (e.g. #42)"
     echo "  Your message: $MSG"
     echo ""
     echo 'Usage: git commit -m "feat: description (#42)"'
