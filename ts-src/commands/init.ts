@@ -66,7 +66,7 @@ export async function run(options: InitOptions): Promise<void> {
     config = {
       contractsDir: options.contractsDir || '.specflow/contracts',
       testsDir: options.testsDir || '.specflow/tests',
-      gitHook: false,
+      gitHook: true,
       claudeHooks: true,
     };
   } else if (!jsonOutput && process.stdin.isTTY) {
@@ -79,7 +79,7 @@ export async function run(options: InitOptions): Promise<void> {
 
     const contractsDir = await prompt(rl, 'Where should contracts live?', '.specflow/contracts');
     const testsDir = await prompt(rl, 'Where should test stubs go?', '.specflow/tests');
-    const gitHook = await promptYesNo(rl, 'Require issue numbers in commit messages?', false);
+    const gitHook = await promptYesNo(rl, 'Require issue numbers in commit messages?');
     const claudeHooks = await promptYesNo(rl, 'Configure Claude Code hooks?');
     const appendClaudeMd = await promptYesNo(rl, 'Append Specflow rules to CLAUDE.md?');
 
@@ -96,7 +96,7 @@ export async function run(options: InitOptions): Promise<void> {
     config = {
       contractsDir: '.specflow/contracts',
       testsDir: '.specflow/tests',
-      gitHook: false,
+      gitHook: true,
       claudeHooks: true,
     };
   }
