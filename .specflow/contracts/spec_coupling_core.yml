@@ -1,0 +1,48 @@
+contract_meta:
+  id: spec_coupling_core
+  type: spec_coupling
+  version: "1.0.0"
+  covers_reqs:
+    - "Specs must evolve with code they describe"
+
+llm_policy:
+  severity: error
+  auto_fixable: false
+  instructions: |
+    When this contract fails, the PR has changed source code in a coupled
+    directory but has not updated the matching documentation. Either update
+    the doc, or add `override_contract: spec_coupling <reason>` to the commit
+    message for mechanical/formatting changes.
+
+rules:
+  couplings:
+    - id: COUPLE-001
+      description: Command implementations must ship with doc updates
+      source_globs:
+        - "ts-src/commands/**/*.ts"
+      required_doc_globs:
+        - "docs/architecture/adrs/**/*.md"
+        - "docs/architecture/prds/**/*.md"
+        - "docs/architecture/ddds/**/*.md"
+      exclude_globs:
+        - "**/*.test.ts"
+        - "**/*.spec.ts"
+
+    - id: COUPLE-002
+      description: Contract engine changes must update the engine DDD
+      source_globs:
+        - "ts-src/lib/native.ts"
+        - "ts-src/lib/coupling-enforcer.ts"
+      required_doc_globs:
+        - "docs/architecture/ddds/**/*.md"
+      exclude_globs:
+        - "**/*.test.ts"
+
+    - id: COUPLE-003
+      description: New/changed contracts must update the CONTRACT_INDEX
+      source_globs:
+        - ".specflow/contracts/*.yml"
+      required_doc_globs:
+        - ".specflow/contracts/CONTRACT_INDEX.yml"
+      exclude_globs:
+        - ".specflow/contracts/CONTRACT_INDEX.yml"

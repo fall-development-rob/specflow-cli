@@ -10,6 +10,9 @@ import { loadContracts } from '../lib/native';
 import { countFiles, isExecutable } from '../lib/fs-utils';
 import { bold, red, green, yellow, cyan, dim } from '../lib/logger';
 import { loadConfig } from '../lib/config';
+import { DocumentRepository } from '../lib/document-repository';
+import { validate as validateLinks, fix as fixLinks } from '../lib/link-validator';
+import { walkAll as walkReferences } from '../lib/reference-walker';
 
 type Severity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
 type Status = 'pass' | 'warn' | 'fail';
@@ -25,10 +28,16 @@ interface DoctorOptions {
   dir?: string;
   json?: boolean;
   fix?: boolean;
+  docs?: boolean;
 }
 
 export function run(options: DoctorOptions): void {
   const projectRoot = path.resolve(options.dir || '.');
+
+  if (options.docs) {
+    return runDocsMode(projectRoot, options);
+  }
+
   const config = loadConfig(projectRoot);
   const checks: Check[] = [];
 
@@ -134,6 +143,9 @@ export function run(options: DoctorOptions): void {
 
   // 14. Knowledge graph database
   checks.push(checkKnowledgeGraph(projectRoot));
+
+  // 15. Documentation health summary
+  checks.push(checkDocsHealth(projectRoot));
 
   // Output
   if (options.json) {
@@ -264,6 +276,121 @@ function checkKnowledgeGraph(projectRoot: string): Check {
     return { name: 'Knowledge graph', severity: 'LOW', status: 'pass', detail: '.specflow/knowledge.db exists and valid' };
   } catch (e: any) {
     return { name: 'Knowledge graph', severity: 'LOW', status: 'warn', detail: `Check failed: ${e.message}` };
+  }
+}
+
+function checkDocsHealth(projectRoot: string): Check {
+  const docsRoot = path.join(projectRoot, 'docs', 'architecture');
+  if (!fs.existsSync(docsRoot)) {
+    return { name: 'Documentation', severity: 'LOW', status: 'warn', detail: 'No docs/architecture directory' };
+  }
+  try {
+    const repo = new DocumentRepository();
+    repo.load(docsRoot);
+    const counts = repo.statusCounts();
+    const overdue = repo.findOverdue(new Date()).length;
+    const refs = walkReferences(projectRoot);
+    repo.setInboundReferences(refs);
+    const orphaned = repo.findOrphans().length;
+    const detail = `${counts.Accepted} Accepted, ${counts.Superseded} Superseded, ${counts.Deprecated} Deprecated. ${overdue} overdue, ${orphaned} orphaned.`;
+    const status = overdue > 0 || orphaned > 0 ? 'warn' : 'pass';
+    return { name: 'Documentation', severity: 'LOW', status, detail };
+  } catch (e: any) {
+    return { name: 'Documentation', severity: 'LOW', status: 'warn', detail: `Check failed: ${e.message}` };
+  }
+}
+
+function runDocsMode(projectRoot: string, options: DoctorOptions): void {
+  const docsRoot = path.join(projectRoot, 'docs', 'architecture');
+  if (!fs.existsSync(docsRoot)) {
+    console.error(`No docs directory at ${docsRoot}`);
+    process.exit(2);
+  }
+
+  const repo = new DocumentRepository();
+  repo.load(docsRoot);
+  const parseErrors = repo.getErrors();
+  const linkReport = validateLinks(repo);
+
+  if (options.fix) {
+    const fixResult = fixLinks(repo);
+    if (!options.json) {
+      if (fixResult.fixed.length > 0) {
+        console.log(green(`  Fixed ${fixResult.fixed.length} reciprocal link(s).`));
+      }
+      for (const r of fixResult.refused) {
+        console.log(yellow(`  Refused: ${r.reciprocal.from} ↔ ${r.reciprocal.to} (${r.reason})`));
+      }
+    }
+    repo.load(docsRoot); // reload after writes
+  }
+
+  const postFixReport = options.fix ? validateLinks(repo) : linkReport;
+  const counts = repo.statusCounts();
+
+  if (options.json) {
+    console.log(JSON.stringify({
+      counts,
+      parseErrors: parseErrors.map(e => ({ filePath: path.relative(projectRoot, e.filePath), error: e.error })),
+      missingReciprocals: postFixReport.missingReciprocals,
+      danglingReferences: postFixReport.danglingReferences,
+    }, null, 2));
+  } else {
+    printDocsHuman(repo, parseErrors, postFixReport, counts, projectRoot);
+  }
+
+  const hasFailures =
+    parseErrors.length > 0 ||
+    postFixReport.missingReciprocals.length > 0 ||
+    postFixReport.danglingReferences.length > 0;
+  if (hasFailures) {
+    process.exit(1);
+  }
+}
+
+function printDocsHuman(
+  repo: DocumentRepository,
+  parseErrors: Array<{ filePath: string; error: string }>,
+  report: { missingReciprocals: Array<{ from: string; to: string; direction: string }>; danglingReferences: Array<{ from: string; missingTarget: string; field: string }> },
+  counts: Record<string, number>,
+  projectRoot: string
+): void {
+  console.log('');
+  console.log(bold('Specflow Doctor — Documentation'));
+  console.log('');
+
+  console.log(`  Docs loaded: ${repo.all().length}`);
+  console.log(`    Draft: ${counts.Draft}  Accepted: ${counts.Accepted}  Superseded: ${counts.Superseded}  Deprecated: ${counts.Deprecated}`);
+  console.log('');
+
+  if (parseErrors.length > 0) {
+    console.log(red(bold(`  Parse errors (${parseErrors.length}):`)));
+    for (const e of parseErrors) {
+      console.log(`    ${path.relative(projectRoot, e.filePath)}: ${e.error}`);
+    }
+    console.log('');
+  }
+
+  if (report.danglingReferences.length > 0) {
+    console.log(red(bold(`  Dangling references (${report.danglingReferences.length}):`)));
+    for (const d of report.danglingReferences) {
+      console.log(`    ${d.from}.${d.field} → ${d.missingTarget} (not found)`);
+    }
+    console.log('');
+  }
+
+  if (report.missingReciprocals.length > 0) {
+    console.log(yellow(bold(`  Missing reciprocal links (${report.missingReciprocals.length}):`)));
+    for (const m of report.missingReciprocals) {
+      console.log(`    ${m.from} ↔ ${m.to} (missing ${m.direction === 'implements' ? 'implemented_by' : 'implements'})`);
+    }
+    console.log(dim('  Run with --fix to auto-mirror.'));
+    console.log('');
+  }
+
+  if (parseErrors.length === 0 && report.danglingReferences.length === 0 && report.missingReciprocals.length === 0) {
+    console.log(green('  All documentation checks passed.'));
+    console.log('');
   }
 }
 
