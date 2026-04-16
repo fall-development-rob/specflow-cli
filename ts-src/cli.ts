@@ -46,6 +46,12 @@ Commands:
   generate [dir] [--json]             Re-detect stack and generate contracts
                  [--contracts-dir]
   doctor [dir] [--json] [--fix]       Run health checks
+                  [--docs]              (validate doc frontmatter + links)
+  migrate-docs [dir] [--dry-run]      Convert legacy doc headers to frontmatter
+  review [dir] [--overdue]            Documentation health review
+         [--orphans] [--json]
+  snapshot [dir] [--on-ship --tag <t>] Stamp doc versions at release time
+           [--list] [--diff <a> <b>]
   enforce [dir] [--json] [--contract] Enforce contracts against files
                 [--staged] [--diff <branch>]
                 [--suggest]
@@ -137,6 +143,43 @@ async function main() {
         dir: getPositional(),
         json: hasFlag('--json'),
         fix: hasFlag('--fix'),
+        docs: hasFlag('--docs'),
+      });
+      break;
+    }
+
+    case 'migrate-docs': {
+      const { run } = require('./commands/migrate-docs');
+      await run({
+        dir: getPositional(),
+        dryRun: hasFlag('--dry-run'),
+        json: hasFlag('--json'),
+      });
+      break;
+    }
+
+    case 'review': {
+      const { run } = require('./commands/review');
+      await run({
+        dir: getPositional(),
+        json: hasFlag('--json'),
+        overdue: hasFlag('--overdue'),
+        orphans: hasFlag('--orphans'),
+      });
+      break;
+    }
+
+    case 'snapshot': {
+      const { run } = require('./commands/snapshot');
+      await run({
+        dir: getPositional(),
+        onShip: hasFlag('--on-ship'),
+        list: hasFlag('--list'),
+        diff: hasFlag('--diff'),
+        tag: getFlagValue('--tag'),
+        tagA: restArgs.filter(a => !a.startsWith('-'))[0],
+        tagB: restArgs.filter(a => !a.startsWith('-'))[1],
+        json: hasFlag('--json'),
       });
       break;
     }

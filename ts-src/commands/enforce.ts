@@ -9,6 +9,8 @@ import { execSync } from 'child_process';
 import { scanFiles, scanFileList } from '../lib/native';
 import { printHuman, printJson } from '../lib/reporter';
 import { loadConfig } from '../lib/config';
+import { loadCouplingContracts, evaluate as evaluateCoupling, gitDiffScope, CouplingViolation } from '../lib/coupling-enforcer';
+import { DocumentRepository } from '../lib/document-repository';
 
 interface EnforceOptions {
   dir?: string;
@@ -249,7 +251,50 @@ export async function run(options: EnforceOptions): Promise<void> {
     }
   }
 
+  // spec_coupling evaluation (additive — runs alongside forbidden/required rules)
+  const couplingContracts = loadCouplingContracts(contractsDir);
+  if (couplingContracts.length > 0) {
+    const docsRoot = path.join(projectRoot, 'docs', 'architecture');
+    const repo = new DocumentRepository();
+    if (fs.existsSync(docsRoot)) repo.load(docsRoot);
+
+    const diffScope = gitDiffScope({
+      diff: options.diff,
+      staged: options.staged,
+      cwd: projectRoot,
+    });
+    const couplingViolations = evaluateCoupling(couplingContracts, diffScope, { docRepo: repo });
+
+    if (options.json) {
+      if (couplingViolations.length > 0) {
+        console.log(JSON.stringify({ type: 'spec_coupling', violations: couplingViolations }, null, 2));
+      }
+    } else {
+      printCouplingViolations(couplingViolations);
+    }
+
+    const hasHardFailures = couplingViolations.some(v => v.severity === 'error');
+    if (hasHardFailures) {
+      process.exitCode = 1;
+    }
+  }
+
   if (output.violations.length > 0) {
     process.exitCode = 1;
+  }
+}
+
+function printCouplingViolations(violations: CouplingViolation[]): void {
+  if (violations.length === 0) return;
+  console.log('');
+  console.log('  spec_coupling:');
+  for (const v of violations) {
+    const label = v.severity === 'error' ? '  ERROR' : '  WARN ';
+    console.log(`${label} ${v.contractId}::${v.ruleId} — ${v.description}`);
+    console.log(`    changed source:  ${v.changedSourceFiles.length} file(s)`);
+    console.log(`    expected docs:   ${v.expectedDocGlobs.join(', ')}`);
+    if (v.overrideJustification) {
+      console.log(`    override:        ${v.overrideJustification}`);
+    }
   }
 }
