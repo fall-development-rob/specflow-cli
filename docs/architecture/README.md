@@ -27,6 +27,7 @@ This directory contains the planning, architecture, and design documents for tra
 | [PRD-007: Incremental Enforcement & PR Compliance](prds/PRD-007-incremental-enforcement.md) | 11a/b/d | --staged, --diff, --suggest flags, PR compliance reports |
 | [PRD-008: Contract Creation](prds/PRD-008-contract-creation.md) | 11c | specflow contract create with template and AI modes |
 | [PRD-009: Contract Packages](prds/PRD-009-contract-packages.md) | 11e | Shareable contract packages via npm: add, remove, publish |
+| [PRD-010: Spec Integrity Toolkit](prds/PRD-010-spec-integrity-toolkit.md) | 12 | spec_coupling contracts, frontmatter schema, review/snapshot/migrate-docs commands |
 
 ### ADRs (Architecture Decision Records)
 
@@ -41,6 +42,9 @@ This directory contains the planning, architecture, and design documents for tra
 | [ADR-007: Knowledge Graph (Amended)](adrs/ADR-007-agentdb-knowledge-graph.md) | Use sql.js (WASM SQLite) as knowledge graph storage layer; AgentDB deferred to future stable release |
 | [ADR-008: Incremental Enforcement](adrs/ADR-008-incremental-enforcement.md) | Add --staged and --diff flags to enforce command for git-scoped scanning |
 | [ADR-009: Contract Packages](adrs/ADR-009-contract-packages.md) | Contract packages distributed via npm with specflow field in package.json |
+| [ADR-010: Specs as Enforced Artefacts](adrs/ADR-010-specs-as-enforced-artefacts.md) | Documentation becomes a first-class enforceable category via spec_coupling |
+| [ADR-011: Document Lifecycle and Frontmatter Schema](adrs/ADR-011-document-lifecycle-and-frontmatter.md) | YAML frontmatter, status lifecycle (Draft/Accepted/Superseded/Deprecated), version snapshots |
+| [ADR-012: Bidirectional Document Linking](adrs/ADR-012-bidirectional-document-linking.md) | implements/implemented_by reciprocity, validated and auto-fixed by doctor |
 
 ### DDDs (Domain Design Documents)
 
@@ -52,6 +56,7 @@ This directory contains the planning, architecture, and design documents for tra
 | [DDD-004: Knowledge Graph](ddds/DDD-004-knowledge-graph.md) | Graph model, domain services, SQL query patterns, sql.js integration |
 | [DDD-005: Incremental Enforcement](ddds/DDD-005-incremental-enforcement.md) | Git integration, file filter pipeline, baseline comparison, domain model |
 | [DDD-006: Contract Packages](ddds/DDD-006-contract-packages.md) | Package lifecycle, conflict resolution, registry interaction, domain model |
+| [DDD-007: Spec Integrity Domain](ddds/DDD-007-spec-integrity-domain.md) | Document entity, lifecycle state machine, link graph, coupling enforcement, snapshot ledger |
 
 ---
 
