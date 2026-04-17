@@ -36,7 +36,30 @@ export interface DocumentFrontmatter {
   superseded_by?: string;
   deprecation_note?: string;
   references?: string[];
+  /**
+   * S7 (ADR-016) — typed links. All optional.
+   * `tests`, `blocks`, `contradicts` are arrays of doc ids (ADR-NNN etc.).
+   * `owned_by` is an array of @handles / @team tags (see OWNER_PATTERN).
+   * `implements_contracts` is an array of contract ids as declared in
+   * `.specflow/contracts/*.yml` under `contract_meta.id`. Unlike `implements`
+   * the members are free-form strings, validated against the contract index at
+   * doctor time rather than the ID_PATTERN for ADR/PRD/DDD docs.
+   */
+  tests?: string[];
+  blocks?: string[];
+  contradicts?: string[];
+  owned_by?: string[];
+  implements_contracts?: string[];
 }
+
+/**
+ * Permitted owner handle shape (S7).
+ * Example matches: `@team-platform`, `@fall-dev`, `@robotix/eng`.
+ * The leading `@` is mandatory and the remainder must start with a letter; we
+ * deliberately disallow bare email addresses or free-form text so `review
+ * --owner` lookups stay predictable.
+ */
+export const OWNER_PATTERN = /^@[a-zA-Z][a-zA-Z0-9._\-/]*$/;
 
 export interface ParseSuccess {
   ok: true;
@@ -128,6 +151,13 @@ function normalise(raw: any): DocumentFrontmatter {
     superseded_by: raw.superseded_by ? String(raw.superseded_by) : undefined,
     deprecation_note: raw.deprecation_note ? String(raw.deprecation_note) : undefined,
     references: Array.isArray(raw.references) ? raw.references.map(String) : undefined,
+    tests: Array.isArray(raw.tests) ? raw.tests.map(String) : undefined,
+    blocks: Array.isArray(raw.blocks) ? raw.blocks.map(String) : undefined,
+    contradicts: Array.isArray(raw.contradicts) ? raw.contradicts.map(String) : undefined,
+    owned_by: Array.isArray(raw.owned_by) ? raw.owned_by.map(String) : undefined,
+    implements_contracts: Array.isArray(raw.implements_contracts)
+      ? raw.implements_contracts.map(String)
+      : undefined,
   };
 }
 
@@ -173,7 +203,43 @@ export function validate(fm: DocumentFrontmatter): string[] {
     if (!ID_PATTERN.test(ref)) errors.push(`implements entry "${ref}" must match ${idShape}`);
   }
   for (const ref of fm.implemented_by) {
-    if (!ID_PATTERN.test(ref)) errors.push(`implemented_by entry "${ref}" must match ${idShape}`);
+    // Accept doc ids (ADR-NNN etc.) or free-form contract ids (letters, digits,
+    // _, -). Contract ids show up here for docs that predate the S7
+    // `implements_contracts` field (ADR-016 backward compat, DDD-007).
+    if (!ID_PATTERN.test(ref) && !/^[A-Za-z][A-Za-z0-9_\-]*$/.test(ref)) {
+      errors.push(`implemented_by entry "${ref}" must match ${idShape} or a contract id`);
+    }
+  }
+
+  // S7 typed links — each element must be a parseable doc id. Existence
+  // against the repo is checked by LinkReciprocityValidator / doctor --docs.
+  for (const field of ['tests', 'blocks', 'contradicts'] as const) {
+    const list = fm[field];
+    if (!list) continue;
+    for (const ref of list) {
+      if (!ID_PATTERN.test(ref)) {
+        errors.push(`${field} entry "${ref}" must match ${idShape}`);
+      }
+    }
+  }
+
+  if (fm.owned_by) {
+    for (const owner of fm.owned_by) {
+      if (!OWNER_PATTERN.test(owner)) {
+        errors.push(`owned_by entry "${owner}" must match @<handle> (letters, digits, . _ - /)`);
+      }
+    }
+  }
+
+  if (fm.implements_contracts) {
+    for (const cid of fm.implements_contracts) {
+      // Contract ids are author-defined strings, not ADR-NNN shaped. Reject
+      // empty strings / whitespace only here; existence is checked by doctor
+      // against the contract index.
+      if (!cid || !cid.trim()) {
+        errors.push('implements_contracts entries must be non-empty contract ids');
+      }
+    }
   }
 
   return errors;
@@ -194,6 +260,14 @@ export function serialize(fm: DocumentFrontmatter): string {
   if (fm.superseded_by) ordered.superseded_by = fm.superseded_by;
   if (fm.deprecation_note) ordered.deprecation_note = fm.deprecation_note;
   if (fm.references && fm.references.length > 0) ordered.references = fm.references;
+  // S7 typed links — emit only when populated so we don't inflate existing docs.
+  if (fm.tests && fm.tests.length > 0) ordered.tests = fm.tests;
+  if (fm.blocks && fm.blocks.length > 0) ordered.blocks = fm.blocks;
+  if (fm.contradicts && fm.contradicts.length > 0) ordered.contradicts = fm.contradicts;
+  if (fm.owned_by && fm.owned_by.length > 0) ordered.owned_by = fm.owned_by;
+  if (fm.implements_contracts && fm.implements_contracts.length > 0) {
+    ordered.implements_contracts = fm.implements_contracts;
+  }
 
   const yamlText = yaml.dump(ordered, { lineWidth: 120, noRefs: true });
   return `---\n${yamlText}---\n`;

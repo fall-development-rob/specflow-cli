@@ -20,7 +20,13 @@ export interface MissingReciprocal {
 export interface DanglingReference {
   from: string;
   missingTarget: string;
-  field: 'implements' | 'implemented_by' | 'superseded_by';
+  field:
+    | 'implements'
+    | 'implemented_by'
+    | 'superseded_by'
+    | 'tests'
+    | 'blocks'
+    | 'contradicts';
 }
 
 export interface ReciprocityReport {
@@ -57,6 +63,19 @@ export function validate(repo: DocumentRepository): ReciprocityReport {
       const target = repo.get(doc.frontmatter.superseded_by);
       if (!target) {
         dangling.push({ from: doc.id, missingTarget: doc.frontmatter.superseded_by, field: 'superseded_by' });
+      }
+    }
+
+    // S7 typed-link dangling-reference check. These are one-way links: we do
+    // not enforce reciprocity (`blocks` and `contradicts` are author-driven
+    // directional claims), but every target must still resolve to a real doc.
+    for (const field of ['tests', 'blocks', 'contradicts'] as const) {
+      const list = doc.frontmatter[field];
+      if (!list) continue;
+      for (const targetId of list) {
+        if (!repo.get(targetId)) {
+          dangling.push({ from: doc.id, missingTarget: targetId, field });
+        }
       }
     }
   }

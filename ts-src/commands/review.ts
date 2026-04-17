@@ -1,6 +1,12 @@
 /**
- * specflow review [dir] [--overdue] [--orphans] [--json]
+ * specflow review [dir] [--overdue] [--orphans] [--owner @handle] [--html] [--json]
  * Documentation health report for the quarterly sweep.
+ *
+ * S7 additions (ADR-016):
+ *   - `--owner @handle` filters to docs whose frontmatter `owned_by` list
+ *     contains the handle. Combines with `--overdue` / `--orphans` (AND).
+ *   - `--html` emits a static site under `.specflow/review/` via
+ *     `generateHtmlSite`.
  */
 
 import * as fs from 'fs';
@@ -9,12 +15,15 @@ import { DocumentRepository } from '../lib/document-repository';
 import { walkAll as walkReferences } from '../lib/reference-walker';
 import { ReviewReporter, ReviewItem } from '../lib/review-reporter';
 import { bold, yellow, red, green, dim, cyan } from '../lib/logger';
+import { generateHtmlSite } from '../lib/html-review';
 
 interface ReviewOptions {
   dir?: string;
   json?: boolean;
   overdue?: boolean;
   orphans?: boolean;
+  owner?: string;
+  html?: boolean;
 }
 
 export async function run(options: ReviewOptions): Promise<void> {
@@ -30,6 +39,23 @@ export async function run(options: ReviewOptions): Promise<void> {
   const refs = walkReferences(projectRoot);
   repo.setInboundReferences(refs);
 
+  // --html short-circuits the CLI output: it writes a directory and prints
+  // the absolute path. We still apply `--owner` so the emitted site respects
+  // the filter the author asked for.
+  if (options.html) {
+    const result = generateHtmlSite(repo, { projectRoot, ownerFilter: options.owner });
+    if (options.json) {
+      console.log(JSON.stringify({ outputDir: result.outputDir, files: result.files }, null, 2));
+    } else {
+      console.log('');
+      console.log(bold(`Specflow Review — HTML site generated`));
+      console.log(`  ${cyan(result.outputDir)}`);
+      console.log(`  ${dim(`${result.files.length} file(s) written`)}`);
+      console.log('');
+    }
+    return;
+  }
+
   const reporter = new ReviewReporter(repo, new Date());
   const report = reporter.generate();
 
@@ -37,17 +63,34 @@ export async function run(options: ReviewOptions): Promise<void> {
   if (options.overdue) items = items.filter(i => i.classification === 'overdue');
   else if (options.orphans) items = items.filter(i => i.classification === 'orphaned');
 
+  if (options.owner) {
+    const owner = options.owner;
+    items = items.filter(i => {
+      const doc = repo.get(i.id);
+      const list = doc?.frontmatter.owned_by || [];
+      return list.includes(owner);
+    });
+  }
+
   if (options.json) {
-    console.log(JSON.stringify({ ...report, items }, null, 2));
+    console.log(JSON.stringify({ ...report, items, ownerFilter: options.owner || null }, null, 2));
     return;
   }
 
-  printHuman(items, report, projectRoot);
+  printHuman(items, report, projectRoot, options.owner);
 }
 
-function printHuman(items: ReviewItem[], report: { generatedAt: string; counts: any }, projectRoot: string): void {
+function printHuman(
+  items: ReviewItem[],
+  report: { generatedAt: string; counts: any },
+  projectRoot: string,
+  ownerFilter?: string
+): void {
   console.log('');
   console.log(bold(`Specflow Review Report — ${report.generatedAt}`));
+  if (ownerFilter) {
+    console.log(`  ${dim(`filter: owner=${ownerFilter}`)}`);
+  }
   console.log('');
 
   console.log(`  ACCEPTED DOCS: ${report.counts.accepted}`);

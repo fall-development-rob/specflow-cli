@@ -22,8 +22,42 @@ function getFlagValue(flag: string): string | undefined {
   return undefined;
 }
 
+/**
+ * Flags that take a value. `getPositional()` uses this to skip the token that
+ * immediately follows — otherwise `--owner @team-platform` gets interpreted
+ * as the positional `@team-platform`, which breaks commands that accept both
+ * a positional directory and value-bearing flags.
+ *
+ * Keep this list additive; the cost of a false positive (a real positional
+ * being skipped) is low because the positional itself is always optional.
+ */
+const VALUE_FLAGS = new Set([
+  '--contracts-dir',
+  '--tests-dir',
+  '--template',
+  '--dir',
+  '--category',
+  '--owner',
+  '--contract',
+  '--tag',
+  '--diff',
+  '--since',
+  '--id',
+  '--note',
+  '--by',
+  '--ai',
+]);
+
 function getPositional(): string | undefined {
-  return restArgs.find(a => !a.startsWith('-'));
+  for (let i = 0; i < restArgs.length; i++) {
+    const arg = restArgs[i];
+    if (arg.startsWith('-')) {
+      if (VALUE_FLAGS.has(arg)) i++; // skip the value that follows
+      continue;
+    }
+    return arg;
+  }
+  return undefined;
 }
 
 // Version
@@ -56,7 +90,9 @@ Commands:
       stamp [--overdue | --id <ids>]    Re-stamp last_reviewed
       revive <id>                       Deprecated -> Accepted
   review [dir] [--overdue]            Documentation health review
-         [--orphans] [--json]
+         [--orphans] [--json]            (filter/overdue/orphans)
+         [--owner @handle]                (filter to one owner)
+         [--html]                         (emit .specflow/review/ site)
   snapshot [dir] [--on-ship --tag <t>] Stamp doc versions at release time
            [--list] [--diff <a> <b>]
   enforce [dir] [--json] [--contract] Enforce contracts against files
@@ -68,6 +104,8 @@ Commands:
   impact <contract-id> [--json]       Analyze contract change impact
   compile <csv-file>                  Compile journey contracts
   audit <issue-number>                Audit an issue for compliance
+  audit --contract <id> [--json]      Walk upward from a contract id
+                                       and show implementing docs
   graph [contracts-dir]               Validate contract graph
   contract list                        List available contract templates
   contract create [--template <name>] Create contract from template
@@ -186,6 +224,8 @@ async function main() {
         json: hasFlag('--json'),
         overdue: hasFlag('--overdue'),
         orphans: hasFlag('--orphans'),
+        owner: getFlagValue('--owner'),
+        html: hasFlag('--html'),
       });
       break;
     }
@@ -257,7 +297,13 @@ async function main() {
 
     case 'audit': {
       const { run } = require('./commands/audit');
-      await run({ issue: restArgs[0] || '' });
+      const contractFlag = getFlagValue('--contract');
+      await run({
+        issue: contractFlag ? undefined : (restArgs.find(a => !a.startsWith('-')) || ''),
+        contract: contractFlag,
+        dir: getFlagValue('--dir'),
+        json: hasFlag('--json'),
+      });
       break;
     }
 

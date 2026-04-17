@@ -13,6 +13,7 @@ import { loadConfig } from '../lib/config';
 import { DocumentRepository } from '../lib/document-repository';
 import { validate as validateLinks, fix as fixLinks } from '../lib/link-validator';
 import { walkAll as walkReferences } from '../lib/reference-walker';
+import { loadContractIndex } from '../lib/contract-index';
 
 type Severity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
 type Status = 'pass' | 'warn' | 'fail';
@@ -329,21 +330,36 @@ function runDocsMode(projectRoot: string, options: DoctorOptions): void {
   const postFixReport = options.fix ? validateLinks(repo) : linkReport;
   const counts = repo.statusCounts();
 
+  // S7 — validate `implements_contracts` against the on-disk contract index.
+  // Contract ids are author-defined strings, not ID_PATTERN shaped, so the
+  // frontmatter validator can only check shape. Existence lives here.
+  const contractIndex = loadContractIndex(path.join(projectRoot, '.specflow', 'contracts'));
+  const missingContracts: Array<{ from: string; missingContract: string }> = [];
+  for (const doc of repo.all()) {
+    for (const cid of doc.frontmatter.implements_contracts || []) {
+      if (!contractIndex.get(cid)) {
+        missingContracts.push({ from: doc.id, missingContract: cid });
+      }
+    }
+  }
+
   if (options.json) {
     console.log(JSON.stringify({
       counts,
       parseErrors: parseErrors.map(e => ({ filePath: path.relative(projectRoot, e.filePath), error: e.error })),
       missingReciprocals: postFixReport.missingReciprocals,
       danglingReferences: postFixReport.danglingReferences,
+      missingContracts,
     }, null, 2));
   } else {
-    printDocsHuman(repo, parseErrors, postFixReport, counts, projectRoot);
+    printDocsHuman(repo, parseErrors, postFixReport, counts, projectRoot, missingContracts);
   }
 
   const hasFailures =
     parseErrors.length > 0 ||
     postFixReport.missingReciprocals.length > 0 ||
-    postFixReport.danglingReferences.length > 0;
+    postFixReport.danglingReferences.length > 0 ||
+    missingContracts.length > 0;
   if (hasFailures) {
     process.exit(1);
   }
@@ -354,7 +370,8 @@ function printDocsHuman(
   parseErrors: Array<{ filePath: string; error: string }>,
   report: { missingReciprocals: Array<{ from: string; to: string; direction: string }>; danglingReferences: Array<{ from: string; missingTarget: string; field: string }> },
   counts: Record<string, number>,
-  projectRoot: string
+  projectRoot: string,
+  missingContracts: Array<{ from: string; missingContract: string }> = []
 ): void {
   console.log('');
   console.log(bold('Specflow Doctor — Documentation'));
@@ -389,7 +406,20 @@ function printDocsHuman(
     console.log('');
   }
 
-  if (parseErrors.length === 0 && report.danglingReferences.length === 0 && report.missingReciprocals.length === 0) {
+  if (missingContracts.length > 0) {
+    console.log(red(bold(`  Unknown implements_contracts (${missingContracts.length}):`)));
+    for (const m of missingContracts) {
+      console.log(`    ${m.from} → ${m.missingContract} (not in .specflow/contracts/)`);
+    }
+    console.log('');
+  }
+
+  if (
+    parseErrors.length === 0 &&
+    report.danglingReferences.length === 0 &&
+    report.missingReciprocals.length === 0 &&
+    missingContracts.length === 0
+  ) {
     console.log(green('  All documentation checks passed.'));
     console.log('');
   }
