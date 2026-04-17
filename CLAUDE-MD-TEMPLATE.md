@@ -88,6 +88,18 @@ Specflow hooks run automatically in Claude Code:
 
 ---
 
+## Spec Truth Hierarchy
+
+When artefacts disagree about how the system works, the higher-precedence one wins:
+
+1. **Contracts** (`.specflow/contracts/*.yml`) — continuously verified against running code. Authoritative.
+2. **ADRs** (`docs/architecture/adrs/`) — record accepted decisions. Authoritative for the decision only.
+3. **PRDs and DDDs** (`docs/architecture/prds/`, `docs/architecture/ddds/`) — describe a moment in time. Treat as historical context unless the frontmatter's `last_reviewed` date is recent.
+
+If a narrative doc contradicts a contract, the contract is right. When you find divergence, either fix the code, fix the contract, or open a PR to update the doc — never assume the narrative is current. `specflow status` prints this ordering as a banner so it stays visible.
+
+---
+
 <!-- OPTIONAL SECTIONS BELOW — include only if your project uses these features -->
 
 ## Issue Tracking (Optional)
