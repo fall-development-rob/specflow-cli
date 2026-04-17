@@ -9,6 +9,7 @@ last_reviewed: '2026-04-17'
 implements:
   - ADR-011
 implemented_by:
+  - ADR-013
   - ADR-016
   - DDD-007
 ---
