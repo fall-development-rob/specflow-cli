@@ -3,12 +3,13 @@ id: PRD-010
 title: Spec Integrity Toolkit
 type: PRD
 status: Accepted
-version: 1
+version: 2
 date: '2026-04-16'
 last_reviewed: '2026-04-17'
 implements:
   - DDD-001
   - ADR-008
+  - ADR-015
 ---
 
 # PRD-010: Spec Integrity Toolkit
@@ -221,6 +222,144 @@ specflow snapshot --diff v1.0.0 v1.2.0       # Show which docs changed between r
 - [ ] `--list` reads versions.yml and prints the mapping.
 - [ ] `--diff <a> <b>` reports docs whose version changed between two releases.
 - [ ] Idempotent — re-running for the same tag does not duplicate entries.
+
+---
+
+## New Command Family: `specflow doc`
+
+The `specflow doc` verb family turns every lifecycle operation the toolkit reports into a first-class command. Every verb routes through `Document.transitionTo` (ADR-014), writes atomically via the `DocumentWriter` port, mirrors reciprocal links where applicable, and appends a one-line entry to `.specflow/audit-log.yml`. See ADR-015 for the behavioural contract and DDD-008 for the domain model.
+
+### `specflow doc accept`
+
+```bash
+specflow doc accept <id>
+specflow doc accept ADR-014 --yes
+```
+
+Behaviour:
+
+- Transitions `Draft → Accepted` via `transitionTo`.
+- Validates required Accepted-status fields (title, date, version ≥ 1).
+- Stamps `last_reviewed: <today>` and bumps `version` to 1 if it was 0.
+- Mirrors reciprocal `implemented_by` entries onto docs listed in `implements`.
+- Appends an audit entry with `verb: accept, from: Draft, to: Accepted`.
+
+Acceptance criteria:
+
+- [ ] `accept` on a Draft doc succeeds and writes atomically.
+- [ ] `accept` on an already-Accepted doc exits 0 as a no-op.
+- [ ] Missing required fields cause the verb to exit 2 with a structured error.
+- [ ] Reciprocal `implemented_by` entries appear on linked docs in the same commit.
+- [ ] An audit entry is appended on success and absent on failure.
+- [ ] `--dry-run` prints the planned mutation without writing.
+
+### `specflow doc supersede`
+
+```bash
+specflow doc supersede <id> --by <newId> [--note <s>]
+specflow doc supersede ADR-007 --by ADR-018 --note "Replaced after scope change"
+```
+
+Behaviour:
+
+- Transitions `Accepted → Superseded` atomically.
+- Verifies `<newId>` exists and is Accepted (or Draft with `--allow-draft-successor`).
+- Sets `superseded_by: <newId>` on the old doc.
+- Appends the old doc's id to `<newId>.implemented_by` as part of the same atomic batch.
+- Refuses circular chains (`CircularSupersessionError`).
+
+Acceptance criteria:
+
+- [ ] `supersede` requires `--by` and fails when the flag is absent.
+- [ ] `supersede` fails fast when `<newId>` is unknown or not Accepted.
+- [ ] Reciprocal mirror lands in the same atomic write as the primary mutation.
+- [ ] Circular supersession chains are detected before any write.
+- [ ] Audit entry captures `verb, from, to, successor, reason`.
+
+### `specflow doc deprecate`
+
+```bash
+specflow doc deprecate <id> --note <s>
+specflow doc deprecate PRD-005 --note "Superseded by knowledge graph; no direct successor."
+```
+
+Behaviour:
+
+- Transitions `Accepted → Deprecated` (or updates the note on an already-Deprecated doc).
+- `--note` is required — deprecation without a reason is forbidden.
+- Sets `deprecation_note`, bumps `version`, stamps `last_reviewed`.
+
+Acceptance criteria:
+
+- [ ] `deprecate` without `--note` exits 2.
+- [ ] Running `deprecate` on a Deprecated doc updates the note and bumps version.
+- [ ] `deprecate` is forbidden on a Superseded doc (lifecycle matrix rejects).
+- [ ] Audit entry records the note verbatim.
+
+### `specflow doc bump`
+
+```bash
+specflow doc bump <id>
+specflow doc bump ADR-011 --force
+```
+
+Behaviour:
+
+- Increments `version` and stamps `last_reviewed: <today>`.
+- No status change.
+- Refuses on a doc with no uncommitted git changes unless `--force` is given.
+- Audit entry records `verb: bump`, `fromStatus: null`, `toStatus: null`.
+
+Acceptance criteria:
+
+- [ ] `bump` on an unmodified doc exits 2 without `--force`.
+- [ ] `bump` on a modified doc increments `version` and stamps `last_reviewed`.
+- [ ] `bump` never changes status.
+- [ ] `--force` usage is recorded in the audit entry.
+
+### `specflow doc stamp`
+
+```bash
+specflow doc stamp --overdue
+specflow doc stamp --id ADR-003 --id ADR-004 --yes
+```
+
+Behaviour:
+
+- Re-dates `last_reviewed` across a selected set; does not bump `version`.
+- `--overdue` selects every doc whose `ageInDays(now) > 90`.
+- `--id <id>` selects named docs; may be repeated.
+- Interactive by default: prints the affected set as a diff and prompts for confirmation.
+- In non-TTY contexts without `--yes`, refuses to run.
+
+Acceptance criteria:
+
+- [ ] `stamp --overdue` with no overdue docs exits 0 as a no-op.
+- [ ] `stamp` prints the impacted doc list before writing, even with `--yes`.
+- [ ] `stamp` refuses in non-interactive shells without `--yes`.
+- [ ] One audit entry is emitted per stamped doc.
+- [ ] `stamp` never alters status or version.
+- [ ] There is no `--all` flag; `--overdue` or explicit `--id` is required.
+
+### `specflow doc revive`
+
+```bash
+specflow doc revive <id>
+specflow doc revive PRD-005
+```
+
+Behaviour:
+
+- Transitions `Deprecated → Accepted`.
+- Clears `deprecation_note`, bumps `version`, stamps `last_reviewed`.
+- Rejects Superseded docs (forbidden by the transition matrix).
+
+Acceptance criteria:
+
+- [ ] `revive` on a Deprecated doc transitions it back to Accepted.
+- [ ] `revive` on a Superseded doc exits 2 with `TransitionError.Forbidden`.
+- [ ] `deprecation_note` is cleared on success.
+- [ ] Audit entry records `from: Deprecated, to: Accepted`.
 
 ---
 
