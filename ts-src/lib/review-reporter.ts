@@ -1,11 +1,14 @@
 /**
- * ReviewReporter — classifies docs for the quarterly review sweep.
- * Implements DDD-007 ReviewReporter aggregate.
+ * ReviewReporter — aggregates per-document classifications for the
+ * quarterly review sweep. Implements DDD-007 ReviewReporter aggregate.
+ *
+ * After S4 the classification logic lives on `Document.classify()`; this
+ * module is thin iteration plus formatting.
  */
 
-import { Document, DocumentRepository } from './document-repository';
+import { Document, DocumentRepository, ReviewClassification } from './document-repository';
 
-export type ReviewClassification = 'current' | 'overdue' | 'orphaned' | 'stale_links' | 'soft_deleted';
+export { ReviewClassification };
 
 export interface ReviewItem {
   id: string;
@@ -37,49 +40,25 @@ export class ReviewReporter {
     private readonly maxAgeDays = 90
   ) {}
 
+  /** Kept for backwards compatibility. Delegates to Document.classify. */
   classify(doc: Document): ReviewClassification {
-    if (doc.frontmatter.status === 'Superseded' || doc.frontmatter.status === 'Deprecated') {
-      return 'soft_deleted';
-    }
-    if (doc.frontmatter.status !== 'Accepted') {
-      return 'current';
-    }
-    if (this.ageInDays(doc.frontmatter.last_reviewed) > this.maxAgeDays) {
-      return 'overdue';
-    }
-    if (doc.inboundReferences.length === 0) {
-      return 'orphaned';
-    }
-    for (const targetId of doc.frontmatter.implements) {
-      const target = this.repo.get(targetId);
-      if (target && (target.frontmatter.status === 'Superseded' || target.frontmatter.status === 'Deprecated')) {
-        return 'stale_links';
-      }
-    }
-    return 'current';
+    return doc.classify(this.now, this.repo, this.maxAgeDays);
   }
 
   generate(): ReviewReport {
     const items: ReviewItem[] = [];
     for (const doc of this.repo.all()) {
-      const cls = this.classify(doc);
+      const cls = doc.classify(this.now, this.repo, this.maxAgeDays);
       const item: ReviewItem = {
         id: doc.id,
         filePath: doc.filePath,
         status: doc.frontmatter.status,
         classification: cls,
         last_reviewed: doc.frontmatter.last_reviewed,
-        ageDays: this.ageInDays(doc.frontmatter.last_reviewed),
+        ageDays: doc.ageInDays(this.now),
       };
       if (cls === 'stale_links') {
-        const stale: { targetId: string; targetStatus: string }[] = [];
-        for (const targetId of doc.frontmatter.implements) {
-          const target = this.repo.get(targetId);
-          if (target && (target.frontmatter.status === 'Superseded' || target.frontmatter.status === 'Deprecated')) {
-            stale.push({ targetId, targetStatus: target.frontmatter.status });
-          }
-        }
-        item.staleLinks = stale;
+        item.staleLinks = this.collectStaleLinks(doc);
       }
       items.push(item);
     }
@@ -96,11 +75,14 @@ export class ReviewReporter {
     return { generatedAt: this.now.toISOString().slice(0, 10), counts, items };
   }
 
-  private ageInDays(dateStr: string): number {
-    if (!dateStr) return Number.MAX_SAFE_INTEGER;
-    const d = new Date(dateStr + 'T00:00:00Z');
-    if (isNaN(d.getTime())) return Number.MAX_SAFE_INTEGER;
-    const diffMs = this.now.getTime() - d.getTime();
-    return Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  private collectStaleLinks(doc: Document): { targetId: string; targetStatus: string }[] {
+    const stale: { targetId: string; targetStatus: string }[] = [];
+    for (const targetId of doc.frontmatter.implements) {
+      const target = this.repo.get(targetId);
+      if (target && (target.frontmatter.status === 'Superseded' || target.frontmatter.status === 'Deprecated')) {
+        stale.push({ targetId, targetStatus: target.frontmatter.status });
+      }
+    }
+    return stale;
   }
 }

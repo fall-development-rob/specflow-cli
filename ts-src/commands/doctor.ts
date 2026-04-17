@@ -288,10 +288,11 @@ function checkDocsHealth(projectRoot: string): Check {
     const repo = new DocumentRepository();
     repo.load(docsRoot);
     const counts = repo.statusCounts();
-    const overdue = repo.findOverdue(new Date()).length;
+    const now = new Date();
+    const overdue = repo.findOverdue(now).length;
     const refs = walkReferences(projectRoot);
     repo.setInboundReferences(refs);
-    const orphaned = repo.findOrphans().length;
+    const orphaned = repo.all().filter(d => d.classify(now, repo) === 'orphaned').length;
     const detail = `${counts.Accepted} Accepted, ${counts.Superseded} Superseded, ${counts.Deprecated} Deprecated. ${overdue} overdue, ${orphaned} orphaned.`;
     const status = overdue > 0 || orphaned > 0 ? 'warn' : 'pass';
     return { name: 'Documentation', severity: 'LOW', status, detail };
