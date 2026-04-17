@@ -12,6 +12,7 @@ implements:
   - DDD-002
 implemented_by:
   - ADR-011
+  - ADR-016
   - DDD-007
 ---
 

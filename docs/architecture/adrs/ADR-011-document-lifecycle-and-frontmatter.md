@@ -10,6 +10,7 @@ implements:
   - ADR-010
 implemented_by:
   - ADR-012
+  - ADR-017
   - DDD-007
 ---
 
