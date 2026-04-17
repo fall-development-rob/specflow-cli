@@ -6,7 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
-const { SnapshotLedger, DuplicateSnapshotError } = require('../../dist/lib/snapshot-ledger');
+const { SnapshotLedger, DuplicateSnapshotError, PrototypeTagError } = require('../../dist/lib/snapshot-ledger');
 const { DocumentRepository } = require('../../dist/lib/document-repository');
 
 function makeDoc({ id, type, status, version }) {
@@ -96,5 +96,67 @@ describe('SnapshotLedger', () => {
     expect(ledger.hasEntry('v1.0.0')).toBe(false);
     ledger.snapshot('v1.0.0', 'a', repo);
     expect(ledger.hasEntry('v1.0.0')).toBe(true);
+  });
+});
+
+describe('SnapshotLedger prototype-pollution guard (ADR-017 rule 3)', () => {
+  test('rejects __proto__ as a tag with PrototypeTagError', () => {
+    const { dir, repo } = makeRepo([
+      { id: 'ADR-240', type: 'ADR', status: 'Accepted', version: 1 },
+    ]);
+    const ledger = new SnapshotLedger(path.join(dir, 'versions.yml'));
+    expect(() => ledger.snapshot('__proto__', 'abc', repo)).toThrow(PrototypeTagError);
+  });
+
+  test('rejects constructor and prototype tags', () => {
+    const { dir, repo } = makeRepo([
+      { id: 'ADR-241', type: 'ADR', status: 'Accepted', version: 1 },
+    ]);
+    const ledger = new SnapshotLedger(path.join(dir, 'versions.yml'));
+    expect(() => ledger.snapshot('constructor', 'c', repo)).toThrow(PrototypeTagError);
+    expect(() => ledger.snapshot('prototype', 'p', repo)).toThrow(PrototypeTagError);
+  });
+
+  test('hasEntry(__proto__) returns false even on an empty ledger', () => {
+    const { dir } = makeRepo([
+      { id: 'ADR-242', type: 'ADR', status: 'Accepted', version: 1 },
+    ]);
+    const ledger = new SnapshotLedger(path.join(dir, 'versions.yml'));
+    // Would have been `true` with a plain `{}` ledger root because of
+    // Object.prototype inheritance.
+    expect(ledger.hasEntry('__proto__')).toBe(false);
+    expect(ledger.hasEntry('constructor')).toBe(false);
+    expect(ledger.hasEntry('prototype')).toBe(false);
+  });
+
+  test('refuses to load a ledger file that contains a __proto__ tag (defence in depth)', () => {
+    const { dir } = makeRepo([
+      { id: 'ADR-243', type: 'ADR', status: 'Accepted', version: 1 },
+    ]);
+    const ledgerPath = path.join(dir, 'versions.yml');
+    // Hand-craft a ledger file that contains a `__proto__` entry.
+    // safe-yaml rejects the parse before Object.prototype can be
+    // touched.  This is one layer up from the in-memory Map guard.
+    fs.writeFileSync(
+      ledgerPath,
+      `version: 1
+entries:
+  __proto__:
+    commit: abc
+    date: '2026-04-17'
+    docs:
+      ADR-999: 42
+`,
+      'utf-8',
+    );
+    const ledger = new SnapshotLedger(ledgerPath);
+    let caught;
+    try { ledger.load(); } catch (e) { caught = e; }
+    expect(caught).toBeDefined();
+    expect(caught.name).toBe('YamlSafetyError');
+    expect(caught.code).toBe('PROTOTYPE_KEY');
+    // And even though we never completed the load, no Object.prototype
+    // pollution has happened.
+    expect(({}).commit).toBeUndefined();
   });
 });

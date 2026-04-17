@@ -16,7 +16,11 @@ import {
   isValidStatus,
   isValidType,
 } from './document-types';
+import { loadSafe, YamlSafetyError } from './safe-yaml';
 
+// `yaml` is used only for `yaml.dump` during serialisation.  All parsing
+// goes through safe-yaml per ADR-017 rule 1.
+// eslint-disable-next-line @typescript-eslint/no-var-requires
 const yaml = require('js-yaml');
 
 // Re-export the type aliases so existing `from './frontmatter'` imports keep
@@ -103,8 +107,11 @@ export function parseString(content: string): ParseResult {
 
   let parsed: any;
   try {
-    parsed = yaml.load(block.yaml);
+    parsed = loadSafe(block.yaml);
   } catch (e: any) {
+    if (e instanceof YamlSafetyError) {
+      return { ok: false, error: `YAML safety error (${e.code}): ${e.message}` };
+    }
     return { ok: false, error: `YAML parse error: ${e.message}` };
   }
 

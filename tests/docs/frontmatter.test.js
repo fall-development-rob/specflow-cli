@@ -134,3 +134,51 @@ describe('injectFrontmatter', () => {
     expect(out).toBe(validDoc);
   });
 });
+
+describe('parseString — safe-yaml hardening (ADR-017 / S6)', () => {
+  const mkDoc = (yamlBody) => `---\n${yamlBody}\n---\n\n# Body\n`;
+
+  test('rejects frontmatter with YAML anchors/aliases', () => {
+    const doc = mkDoc(
+      ['id: ADR-099', 'title: &t Evil', 'type: ADR', 'status: Accepted',
+       'version: 1', 'date: 2026-04-16', 'last_reviewed: 2026-04-16',
+       'implements: []', 'implemented_by: []', 'alias: *t'].join('\n')
+    );
+    const r = parseString(doc);
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.error).toMatch(/ANCHOR/);
+  });
+
+  test('rejects frontmatter with duplicate keys', () => {
+    const doc = mkDoc(
+      ['id: ADR-099', 'title: Dup', 'type: ADR', 'status: Accepted',
+       'status: Draft', 'version: 1', 'date: 2026-04-16',
+       'last_reviewed: 2026-04-16', 'implements: []', 'implemented_by: []'].join('\n')
+    );
+    const r = parseString(doc);
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.error).toMatch(/DUPLICATE_KEY/);
+  });
+
+  test('rejects frontmatter with __proto__ key', () => {
+    const doc = mkDoc(
+      ['id: ADR-099', 'title: Proto', 'type: ADR', 'status: Accepted',
+       'version: 1', 'date: 2026-04-16', 'last_reviewed: 2026-04-16',
+       'implements: []', 'implemented_by: []', '__proto__: polluted'].join('\n')
+    );
+    const r = parseString(doc);
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.error).toMatch(/PROTOTYPE_KEY/);
+  });
+
+  test('accepts unquoted YYYY-MM-DD date as a string under FAILSAFE', () => {
+    const r = parseString(validDoc);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(typeof r.frontmatter.date).toBe('string');
+    expect(r.frontmatter.date).toBe('2026-04-16');
+  });
+});

@@ -12,8 +12,7 @@ import * as path from 'path';
 import { execSync } from 'child_process';
 import { minimatch, Minimatch } from 'minimatch';
 import { DocumentRepository } from './document-repository';
-
-const yaml = require('js-yaml');
+import { loadSafeOrNull } from './safe-yaml';
 
 export interface CouplingRule {
   id: string;
@@ -83,7 +82,7 @@ export function loadCouplingContracts(contractsDir: string): CouplingContract[] 
   for (const filePath of entries) {
     try {
       const content = fs.readFileSync(filePath, 'utf-8');
-      const parsed = yaml.load(content);
+      const parsed = loadSafeOrNull(content, { filename: filePath }) as any;
       if (!parsed || typeof parsed !== 'object') continue;
       const type = parsed?.contract_meta?.type;
       if (type !== 'spec_coupling') continue;
