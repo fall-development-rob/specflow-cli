@@ -9,7 +9,14 @@ import { execSync } from 'child_process';
 import { scanFiles, scanFileList } from '../lib/native';
 import { printHuman, printJson } from '../lib/reporter';
 import { loadConfig } from '../lib/config';
-import { loadCouplingContracts, evaluate as evaluateCoupling, gitDiffScope, CouplingViolation } from '../lib/coupling-enforcer';
+import {
+  loadCouplingContracts,
+  evaluate as evaluateCoupling,
+  gitDiffScope,
+  validateDiffRange,
+  GitDiffScopeError,
+  CouplingViolation,
+} from '../lib/coupling-enforcer';
 import { DocumentRepository } from '../lib/document-repository';
 
 interface EnforceOptions {
@@ -19,6 +26,8 @@ interface EnforceOptions {
   staged?: boolean;
   diff?: string;
   suggest?: boolean;
+  /** Opt into a full-tree-scan fallback on shallow clones (ADR-013 E13-1). */
+  allowShallow?: boolean;
 }
 
 const BINARY_EXTENSIONS = new Set([
@@ -83,22 +92,36 @@ function getStagedFiles(cwd: string): string[] {
 }
 
 /**
- * Get files changed vs a branch.
+ * Get files changed for a validated diff range.
+ *
+ * Accepts either a bare ref (legacy) — treated as `${ref}..HEAD` with a
+ * warning — or a full `<base>..<head>` expression produced by
+ * `validateDiffRange`. Uses two-dot semantics per ADR-013 D13-4; triple-dot
+ * is rejected upstream by `validateDiffRange`.
  */
-function getDiffFiles(branch: string, cwd: string): { files: string[]; error?: string } {
-  // Verify branch exists
-  const verified = git(`rev-parse --verify ${branch}`, cwd);
-  if (verified === null) {
-    return { files: [], error: `Branch not found: ${branch}` };
+function getDiffFiles(range: string, cwd: string): { files: string[]; error?: string } {
+  const parts = range.split('..');
+  if (parts.length !== 2 || !parts[0] || !parts[1]) {
+    return { files: [], error: `Invalid diff range: ${range}` };
+  }
+  const base = parts[0];
+  const head = parts[1];
+
+  // Verify both sides resolve.
+  if (git(`rev-parse --verify ${base}`, cwd) === null) {
+    return { files: [], error: `Diff base not found: ${base}` };
+  }
+  if (git(`rev-parse --verify ${head}`, cwd) === null) {
+    return { files: [], error: `Diff head not found: ${head}` };
   }
 
-  // Check for common ancestor
-  const mergeBase = git(`merge-base ${branch} HEAD`, cwd);
+  // Check for common ancestor (non-fatal; just informative on divergence).
+  const mergeBase = git(`merge-base ${base} ${head}`, cwd);
   if (mergeBase === null) {
-    return { files: [], error: `No common ancestor with ${branch}` };
+    return { files: [], error: `No common ancestor between ${base} and ${head}` };
   }
 
-  const output = git(`diff ${branch}...HEAD --name-only --diff-filter=ACMR`, cwd);
+  const output = git(`diff ${base}..${head} --name-only --diff-filter=ACMR`, cwd);
   if (!output) return { files: [] };
   return { files: parseDiffOutput(output) };
 }
@@ -111,6 +134,30 @@ export async function run(options: EnforceOptions): Promise<void> {
   if (!fs.existsSync(contractsDir)) {
     console.error(`No contract directory found at ${contractsDir}. Run \`specflow init\` first.`);
     process.exit(1);
+  }
+
+  // Normalise --diff input early: correct triple-dot, reject shell metachars,
+  // and accept a bare ref (legacy) by upgrading it to `<ref>..HEAD` with a
+  // warning (per ADR-013 D13-4).
+  if (options.diff) {
+    const raw = options.diff;
+    if (!raw.includes('..')) {
+      console.error(
+        `warning: --diff expects a range "<base>..HEAD"; got "${raw}". ` +
+          `Interpreting as "${raw}..HEAD".`
+      );
+      options.diff = `${raw}..HEAD`;
+    } else {
+      try {
+        const validated = validateDiffRange(raw);
+        for (const w of validated.warnings) console.error(w);
+        options.diff = validated.range;
+      } catch (e) {
+        const msg = e instanceof GitDiffScopeError || e instanceof Error ? e.message : String(e);
+        console.error(`error: ${msg}`);
+        process.exit(2);
+      }
+    }
   }
 
   let result;
@@ -262,6 +309,7 @@ export async function run(options: EnforceOptions): Promise<void> {
       diff: options.diff,
       staged: options.staged,
       cwd: projectRoot,
+      allowShallow: options.allowShallow,
     });
     const couplingViolations = evaluateCoupling(couplingContracts, diffScope, { docRepo: repo });
 

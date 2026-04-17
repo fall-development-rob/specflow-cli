@@ -125,17 +125,33 @@ describe('CouplingEnforcer.evaluate', () => {
     expect(violations).toHaveLength(0);
   });
 
-  test('override directive demotes error to warning', () => {
+  test('override directive demotes error to warning (rule-scoped)', () => {
+    // Per ADR-013 D13-5, override must name the specific contract id — the
+    // bare `spec_coupling` form is rejected. Use the contract id instead.
     const violations = evaluate(
       contracts,
       scope(
         ['ts-src/commands/foo.ts'],
-        ['fix: typo cleanup\n\noverride_contract: spec_coupling mechanical refactor']
+        ['fix: typo cleanup\n\noverride_contract: test_coupling mechanical refactor']
       )
     );
     expect(violations).toHaveLength(1);
     expect(violations[0].severity).toBe('warning');
     expect(violations[0].overrideJustification).toMatch(/mechanical/);
+  });
+
+  test('bare `spec_coupling` override is rejected (D13-5)', () => {
+    const violations = evaluate(
+      contracts,
+      scope(
+        ['ts-src/commands/foo.ts'],
+        ['fix: typo\n\noverride_contract: spec_coupling mechanical']
+      )
+    );
+    expect(violations).toHaveLength(1);
+    // Remains error — override did not fire.
+    expect(violations[0].severity).toBe('error');
+    expect(violations[0].overrideJustification).toBeUndefined();
   });
 
   test('unrelated source changes are not flagged', () => {
