@@ -30,6 +30,9 @@ node_modules/
 /rust/target
 *.node
 
+# Specflow generated review site (specflow review --html)
+.specflow/review/
+
 # Dev tooling (ruflo, claude-flow)
 .swarm/
 .claude/
