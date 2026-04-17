@@ -48,6 +48,13 @@ Commands:
   doctor [dir] [--json] [--fix]       Run health checks
                   [--docs]              (validate doc frontmatter + links)
   migrate-docs [dir] [--dry-run]      Convert legacy doc headers to frontmatter
+  doc <verb> [args]                   Lifecycle verbs for docs
+      accept <id>                       Draft -> Accepted
+      supersede <id> --by <newId>       Accepted -> Superseded
+      deprecate <id> --note "<s>"       Accepted -> Deprecated
+      bump <id>                         version++ and last_reviewed=today
+      stamp [--overdue | --id <ids>]    Re-stamp last_reviewed
+      revive <id>                       Deprecated -> Accepted
   review [dir] [--overdue]            Documentation health review
          [--orphans] [--json]
   snapshot [dir] [--on-ship --tag <t>] Stamp doc versions at release time
@@ -153,6 +160,20 @@ async function main() {
       await run({
         dir: getPositional(),
         dryRun: hasFlag('--dry-run'),
+        json: hasFlag('--json'),
+      });
+      break;
+    }
+
+    case 'doc': {
+      const { run } = require('./commands/doc');
+      // Pass the raw subcommand + remaining args through to the verb
+      // dispatcher so it owns its own flag parsing (each verb has
+      // different flag shapes — --by, --note, --overdue, --id, --yes).
+      await run({
+        dir: getFlagValue('--dir'),
+        args: restArgs,
+        yes: hasFlag('--yes') || hasFlag('-y'),
         json: hasFlag('--json'),
       });
       break;
