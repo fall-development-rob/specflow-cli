@@ -71,6 +71,10 @@ export async function run(options: StatusOptions): Promise<void> {
     }, null, 2));
   } else {
     console.log('');
+    console.log(
+      `${dim('Truth:')} ${bold('contracts')} ${dim('>')} ${bold('ADRs')} ${dim('>')} ${bold('PRDs/DDDs')}${dim('.')}  ${dim('ADRs document decisions; PRDs/DDDs describe a moment in time.')}`
+    );
+    console.log('');
     console.log(bold('Specflow Status'));
     console.log(`Project: ${cyan(projectRoot)}`);
     console.log('');
