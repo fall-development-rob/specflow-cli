@@ -50,6 +50,7 @@
   "dependencies": {
     "glob": "^10.3.10",
     "js-yaml": "^4.1.0",
+    "minimatch": "^10.2.5",
     "sql.js": "^1.14.1"
   },
   "engines": {
