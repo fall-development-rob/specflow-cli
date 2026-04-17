@@ -3,7 +3,7 @@ id: DDD-007
 title: Spec Integrity Domain Design
 type: DDD
 status: Accepted
-version: 1
+version: 2
 date: '2026-04-16'
 last_reviewed: '2026-04-17'
 implements:
@@ -12,6 +12,7 @@ implements:
   - ADR-010
   - ADR-011
   - ADR-012
+  - ADR-013
 ---
 
 # DDD-007: Spec Integrity Domain Design
@@ -47,10 +48,57 @@ The contract engine itself is unchanged. This domain layers on top: it loads fro
 | **Overdue Document** | An Accepted Document with `last_reviewed` more than 90 days ago. |
 | **Snapshot** | An entry in `versions.yml` pinning a release tag to the version of every Document at that moment. |
 | **Truth Hierarchy** | The ordering: contracts > ADRs > PRDs/DDDs. Codified in CLAUDE.md. |
+| **DiffScope** | Value object describing a set of repo-relative file changes and the range that produced them (ADR-013). |
+| **DiffRange** | Discriminated union describing how a `DiffScope` was resolved: `staged`, `two-dot`, `symmetric`, `first-parent`, `full-tree`. |
+| **DocumentWriter** | Injectable port providing atomic `writeAtomic(path, content)` semantics for every domain mutation. |
+| **SignedOverride** | Provenance record written to `.specflow/override-log.jsonl` whenever a rule-scoped override fires. |
+| **Rule-Scoped Override** | An `override_contract: <contractId>:<ruleId>` directive that disables exactly one rule, leaving siblings in force. |
 
 ---
 
 ## Value Objects
+
+### DiffScope
+
+Introduced by ADR-013 D13-1 as the canonical boundary type for every code path that reasons about git-observed changes. Absolute paths are forbidden; all paths are repo-relative POSIX-style strings.
+
+```typescript
+interface DiffScope {
+  readonly repoRoot: string;            // Absolute path, used only by adapters at the FS boundary
+  readonly changedFiles: string[];      // Repo-relative, forward-slash-separated, no leading "/"
+  readonly renames: RenameRecord[];     // Parsed from `git diff --name-status -M`
+  readonly commitMessages: string[];    // One entry per commit in the range
+  readonly range: DiffRange;            // Structured description of how this scope was resolved
+}
+
+interface RenameRecord {
+  readonly from: string;                // Repo-relative
+  readonly to: string;                  // Repo-relative
+  readonly score: number;               // Similarity index 0-100
+}
+
+type DiffRange =
+  | { kind: 'staged' }
+  | { kind: 'two-dot'; base: string; head: string }          // A..HEAD
+  | { kind: 'symmetric'; base: string; head: string }        // A...HEAD, explicit opt-in
+  | { kind: 'first-parent'; commit: string }                 // HEAD^1..HEAD (merge commits)
+  | { kind: 'full-tree'; reason: 'initial-commit' | 'shallow-clone-allowed' };
+```
+
+**Factory:**
+
+```typescript
+namespace DiffScope {
+  function fromGit(cwd: string, opts: { diff?: string; staged?: boolean }): Result<DiffScope, DiffError>;
+}
+```
+
+**Invariants:**
+- Every entry in `changedFiles` is repo-relative: does not start with `/`, does not contain `..` segments, does not contain a drive letter.
+- Every entry uses forward slashes regardless of host OS.
+- `repoRoot` is derived from `git rev-parse --show-toplevel`; it is present but never concatenated into `changedFiles`.
+- `commitMessages` is empty when `range.kind === 'staged'` and no `COMMIT_EDITMSG` context is active (ADR-013 E13-7).
+- Construction fails loudly per ADR-013 D13-3: shallow-clone without opt-in is an error, not an empty scope.
 
 ### DocumentFrontmatter
 
@@ -204,23 +252,46 @@ DocumentRepository (Aggregate Root)
 
 ### CouplingEnforcer (Aggregate Root)
 
-Evaluates `spec_coupling` rules against a diff scope.
+Evaluates `spec_coupling` rules against a `DiffScope`.
 
 ```
 CouplingEnforcer (Aggregate Root)
 ├── rules: CouplingRule[]
 ├── repository: DocumentRepository
 │
-├── evaluate(diff: GitDiff): CouplingViolation[]
-├── matchSourceFiles(rule: CouplingRule, diff: GitDiff): string[]
-├── matchDocChanges(rule: CouplingRule, diff: GitDiff): string[]
-└── filterByEnforceability(matches: string[]): string[]   # Only Accepted docs satisfy
+├── evaluate(diff: DiffScope): CouplingViolation[]
+├── matchSourceFiles(rule: CouplingRule, diff: DiffScope): string[]
+├── matchDocChanges(rule: CouplingRule, diff: DiffScope): string[]
+├── filterByEnforceability(matches: string[]): string[]   # Only Accepted docs satisfy
+└── findOverride(diff: DiffScope, contractId: string, ruleId: string): SignedOverride | null
 ```
 
-**Invariants:**
+**Invariants (original):**
 - A coupling is satisfied only if matched doc changes correspond to Accepted docs.
 - Doc-only diffs never produce violations.
 - Override directives in commit messages are respected.
+
+**Invariants added by ADR-013:**
+- `evaluate` receives a `DiffScope` value object only. Raw `GitDiff` shapes and absolute-path arrays are rejected at the aggregate boundary (D13-1).
+- All glob matching delegates to `GlobMatcher` (D13-2). The aggregate does not construct regexes itself.
+- Pre-flight invariants on `DiffScope.fromGit` (D13-3) must be satisfied before `evaluate` runs. In practice this is enforced at the `enforce` command: if `DiffScope.fromGit` returns a `DiffError`, the command exits non-zero before constructing the enforcer.
+- Override matching is **rule-scoped** (D13-5). `findOverride(diff, contractId, ruleId)` looks for `override_contract: <contractId>[:<ruleId>]` with the following rules:
+  - A directive without a rule suffix overrides every rule in the named contract.
+  - A directive with `:<ruleId>` overrides only that rule.
+  - Bare `override_contract: spec_coupling` (contract family name, no contract id) **does not match**. A deprecation warning is emitted for two releases.
+  - The regex anchors to start-of-line after newline and rejects matches inside fenced code blocks (E13-8).
+- Every matched override emits a `SignedOverride` record to `.specflow/override-log.jsonl`:
+  ```typescript
+  interface SignedOverride {
+    contractId: string;
+    ruleId: string | null;          // null => whole-contract override
+    author: string;                  // git author of the commit containing the directive
+    commit: string;                  // SHA
+    justification: string;
+    timestamp: string;               // ISO
+  }
+  ```
+  The log is append-only; the aggregate never mutates or removes prior entries.
 
 ### ReviewReporter (Aggregate Root)
 
@@ -254,6 +325,8 @@ SnapshotLedger (Aggregate Root)
 **Invariants:**
 - Tags are unique in the ledger.
 - Snapshot for tag T captures the version of every Accepted/Superseded/Deprecated doc at the moment T was tagged.
+- All writes to `versions.yml` go through `DocumentWriter.writeAtomic` (ADR-013 D13-5). A crash, signal, or ENOSPC mid-write must never leave a truncated or partially-serialised ledger on disk.
+- Concurrent `snapshot` invocations are serialised by a `.specflow/versions.yml.lock` advisory file-lock acquired before the read-modify-write cycle. Last-rename-wins ordering is acceptable; torn or interleaved entries are not.
 
 ---
 
@@ -302,20 +375,37 @@ interface ReferenceWalker {
 
 References are discovered via regex (`(ADR|PRD|DDD)-\d{3}`) and frontmatter `implements` field. The walker is intentionally permissive — it errs toward finding references rather than missing them.
 
-### CouplingMatcher
+### GlobMatcher
+
+Renamed from `CouplingMatcher` in ADR-013 D13-2 to reflect its broader responsibility: it is the single glob-matching implementation for the Spec Integrity domain, used by `CouplingEnforcer`, `ReferenceWalker`, and `DocumentRepository.load()`.
 
 ```typescript
-interface CouplingMatcher {
-  match(rule: CouplingRule, diff: GitDiff): {
+interface GlobMatcher {
+  match(rule: CouplingRule, diff: DiffScope): {
     matchedSource: string[];
     matchedDocs: string[];
     excluded: string[];
   };
   satisfies(rule: CouplingRule, matchedDocs: string[], repo: DocumentRepository): boolean;
+  test(pattern: string, path: string): boolean;
 }
 ```
 
 `satisfies()` filters matched docs through `repo.getEnforceableDocs()` — only Accepted docs count.
+
+**Canonical implementation:** `minimatch@^10`, configured with:
+
+| Flag | Value | Rationale |
+|------|-------|-----------|
+| `dot` | `true` | Coupling rules target `.specflow/contracts/` and other dot-prefixed directories. |
+| `nobrace` | `false` | `*.{ts,tsx}` expands correctly. |
+| `matchBase` | `false` | A path-qualified pattern never matches a bare basename. |
+| `nocase` | `false` | Portable, case-sensitive across platforms. |
+| `noglobstar` | `false` | `**` spans path segments. |
+
+**Supported glob syntax:** `*`, `?`, `**` (path-segment spanning), character classes `[abc]`, brace expansion `{a,b,c}`, extglob `?(x)` `*(x)` `+(x)` `@(x)` `!(x)`, leading `!` for negation in rule `exclude_globs`. All paths are compared after `DiffScope` normalisation, so patterns and inputs both use forward slashes.
+
+**Deprecation:** the home-rolled `globToRegex` previously exported from `ts-src/lib/coupling-enforcer.ts` is removed. Any code path importing it must switch to `GlobMatcher.test` or `minimatch` directly.
 
 ### MigrationService
 
@@ -329,6 +419,45 @@ interface MigrationService {
   populateReciprocals(repo: DocumentRepository): void;
 }
 ```
+
+All file mutations inside `MigrationService` go through the `DocumentWriter` port below — direct `fs.writeFileSync` calls on frontmatter-bearing files are forbidden.
+
+---
+
+## Ports
+
+### DocumentWriter
+
+Introduced by ADR-013 D13-5 as the single filesystem adapter for every mutation path in the Spec Integrity domain. Injectable; production implementation writes to disk, test doubles write to an in-memory map.
+
+```typescript
+interface DocumentWriter {
+  writeAtomic(absolutePath: string, content: string): Promise<void>;
+  readText(absolutePath: string): Promise<string>;
+  exists(absolutePath: string): Promise<boolean>;
+  mkdirp(absoluteDir: string): Promise<void>;
+}
+```
+
+**`writeAtomic` contract:**
+
+1. Ensure parent directory exists (`mkdirp` if necessary).
+2. Generate a sibling temp filename in the same directory: `${basename}.${pid}.${monotonic}.tmp`.
+3. Write `content` to the temp file via `writeFile`, `fsync` the file descriptor, then close.
+4. `rename(tempPath, absolutePath)`. On POSIX filesystems and on NTFS, rename is atomic within a single filesystem.
+5. If any step fails, attempt to unlink the temp file and propagate the error — never leave the target path truncated.
+6. On concurrent writes to the same target path, last-rename-wins; no torn writes occur, but callers that require ordering must serialise higher up (see `SnapshotLedger` below).
+
+**Consumers:**
+
+| Consumer | Path |
+|----------|------|
+| `LinkReciprocityValidator.fix` | Every frontmatter edit for `implements`/`implemented_by` reciprocation. |
+| `SnapshotLedger.snapshot` | Every `versions.yml` append. |
+| `MigrationService.migrate` | Every legacy-header rewrite. |
+| Any future command that rewrites a document | Mandatory. |
+
+**Invariant:** no code in `ts-src/lib/` or `ts-src/commands/` belonging to the Spec Integrity domain invokes `fs.writeFileSync` or `fs.promises.writeFile` directly on files under `docs/architecture/**` or `.specflow/**`. Linter-enforced.
 
 ---
 
@@ -411,6 +540,31 @@ CouplingViolation[] returned to enforce command
 | `OverdueReviewWarning` | last_reviewed > 90 days | Warning surfaced by `review` |
 | `CouplingViolationError` | Source change without matching doc change | enforce exits non-zero unless overridden |
 | `DuplicateSnapshotError` | `snapshot --on-ship --tag T` when T already in ledger | Refuse; user must explicitly delete |
+| `DiffError` | `DiffScope.fromGit` failed pre-flight: shallow clone without opt-in, unresolvable range, or absolute-path output | Exit non-zero with remediation message (ADR-013 D13-3) |
+| `InvalidDiffRangeError` | `--diff` argument is not two-dot form, or base is not an ancestor of head | Exit non-zero at parse time (ADR-013 D13-4) |
+| `DeprecatedOverrideFormatWarning` | Commit uses bare `override_contract: spec_coupling` | Warning for two releases, then error (ADR-013 D13-5) |
+| `AtomicWriteError` | `DocumentWriter.writeAtomic` failed during temp-write or rename | Propagate; temp file cleaned up; target path untouched |
+
+---
+
+## Domain Invariants Introduced by ADR-013
+
+These invariants sit alongside the existing aggregate-level invariants. They are consequences of the five correctness decisions in ADR-013 and are enforced at the domain boundary rather than in individual aggregates.
+
+| # | Invariant | Source | Enforcement Point |
+|---|-----------|--------|-------------------|
+| I13-1 | Every path entering the domain from git is repo-relative, POSIX-style, and does not escape the repo root. | D13-1 | `DiffScope.fromGit` constructor; rejects absolute or escaping paths. |
+| I13-2 | Glob matching uses `minimatch` exclusively; no domain code constructs glob regexes directly. | D13-2 | `GlobMatcher`; static-analysis rule forbids importing `globToRegex`. |
+| I13-3 | `DiffScope.fromGit` never returns a silently-empty scope. Shallow clones, initial commits, and merge commits resolve to an explicit `DiffRange` variant or a `DiffError`. | D13-3 | `DiffScope.fromGit` pre-flight checks. |
+| I13-4 | `--diff <range>` uses two-dot syntax by default; single-ref input and triple-dot without `--diff-symmetric` are rejected at parse time. | D13-4 | `enforce` command argument parser. |
+| I13-5 | Override directives are rule-scoped. The bare form `override_contract: spec_coupling` (family name) does not match; a deprecation warning is logged. | D13-5 | `CouplingEnforcer.findOverride`. |
+| I13-6 | Override directives inside fenced code blocks are ignored. | E13-8 | Commit-message pre-processor in `CouplingEnforcer.findOverride`. |
+| I13-7 | No domain code writes to files under `docs/architecture/**` or `.specflow/**` except via `DocumentWriter.writeAtomic`. | D13-5 | `DocumentWriter` port; lint rule forbids raw `fs.writeFileSync` in domain modules. |
+| I13-8 | Every applied override emits a `SignedOverride` record to the append-only `.specflow/override-log.jsonl`. | D13-5 | `CouplingEnforcer.evaluate`. |
+| I13-9 | `SnapshotLedger` mutations are serialised by a file-lock; concurrent callers never produce torn `versions.yml` entries. | D13-5 | `SnapshotLedger.snapshot`. |
+| I13-10 | `COMMIT_EDITMSG` is consulted only when an active commit-msg hook is detected; otherwise commit-message sources must be explicit. | E13-7 | `DiffScope.fromGit` under `staged` mode. |
+
+Violation of any I13-* invariant is a domain bug, not a user error. The appropriate failure mode is an assertion or typed error at the boundary — never a silent fallback.
 
 ---
 

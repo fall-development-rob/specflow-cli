@@ -3,7 +3,7 @@ id: ADR-010
 title: Specs as First-Class Enforceable Artefacts
 type: ADR
 status: Accepted
-version: 1
+version: 2
 date: '2026-04-16'
 last_reviewed: '2026-04-17'
 implements:
@@ -12,6 +12,7 @@ implements:
   - DDD-002
 implemented_by:
   - ADR-011
+  - ADR-013
   - ADR-016
   - DDD-007
 ---
@@ -89,6 +90,18 @@ The contract engine itself does not change. `spec_coupling` is a new contract ca
 **Problem:** A multi-commit PR might split a code change and a doc change across commits.
 
 **Resolution:** `spec_coupling` evaluates against the diff scope `enforce` is given. Local pre-commit checks single commits; CI uses `--diff origin/main..HEAD` (existing flag from ADR-008) to evaluate the whole PR.
+
+### E10-7: Shallow-Clone CI Bypass
+
+**Problem:** Most CI providers checkout with `fetch-depth: 1` by default (notably `actions/checkout@v4`). The default `HEAD~1..HEAD` diff range resolves to an unreachable commit, git errors, the error is swallowed, and the coupling check silently passes. This is the production-path failure mode that motivated ADR-013.
+
+**Resolution:** ADR-013 D13-3 introduces a fail-loud pre-flight. When `git rev-parse --is-shallow-repository` returns true and the requested range cannot be resolved, `enforce` exits non-zero with a diagnostic directing the user to set `fetch-depth: 0`. The explicit escape hatch `SPECFLOW_ALLOW_SHALLOW=1` falls back to a full-tree scan with a visible warning. No silent empty diffs.
+
+### E10-8: Merge Commit Diff Ambiguity
+
+**Problem:** On a merge commit (two or more parents), `HEAD~1..HEAD` is ambiguous — git chooses first-parent, but the author may have intended the second-parent diff (the feature-branch changes being merged in). The PR-scoped coupling check can fire or silently pass based on merge direction alone.
+
+**Resolution:** ADR-013 D13-3 detects multi-parent commits and uses the explicit `HEAD^1..HEAD` form, logging the parent choice. Authors who need the other-parent diff pass `--diff <other-parent-sha>..HEAD`. CI evaluates the PR via `--diff origin/main..HEAD` which is unambiguous regardless of merge topology.
 
 ---
 

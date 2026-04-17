@@ -3,13 +3,14 @@ id: ADR-011
 title: Document Lifecycle and Frontmatter Schema
 type: ADR
 status: Accepted
-version: 1
+version: 2
 date: '2026-04-16'
 last_reviewed: '2026-04-17'
 implements:
   - ADR-010
 implemented_by:
   - ADR-012
+  - ADR-013
   - ADR-017
   - DDD-007
 ---
@@ -153,6 +154,12 @@ CI fails on schema violation.
 **Problem:** Docs outside `docs/architecture/` (READMEs, guides) don't need this schema.
 
 **Resolution:** Schema enforcement is scoped to `docs/architecture/**/*.md` (configurable). Other docs are unaffected.
+
+### E11-8: Atomic Writes Required for Frontmatter Mutation
+
+**Problem:** Every frontmatter mutation path — `link-validator.fix` (`implements`/`implemented_by` reciprocation), `snapshot-ledger.write` (versions.yml append), and `migrate-docs` (legacy header → YAML frontmatter rewrite) — uses a truncating `fs.writeFileSync`. A crash, SIGTERM, or ENOSPC mid-write truncates the file, corrupting the frontmatter or leaving an invalid YAML block. Concurrent `snapshot` invocations race on `versions.yml` with last-writer-wins and no detection. The toolkit's promise that "no document is ever removed" is violated by a partial-write leaving a file that parses to nothing.
+
+**Resolution:** ADR-013 D13-5 (via DDD-007's new `DocumentWriter` port) mandates `writeAtomic(path, content)` — write to a sibling temp file in the same directory, `fsync`, then `rename` into place. Rename is atomic on POSIX filesystems and on NTFS. Every mutation path in the Spec Integrity domain goes through this port; direct `fs.writeFileSync` calls on frontmatter-bearing files are forbidden at the domain boundary.
 
 ---
 
