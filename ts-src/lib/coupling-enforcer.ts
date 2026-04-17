@@ -3,6 +3,8 @@
  * Implements DDD-007 CouplingEnforcer aggregate and GlobMatcher service.
  *
  * ADR-013 S1: path normalisation via DiffScope + minimatch-based glob matching.
+ * ADR-013 S2: hardened gitDiffScope (preflight, shallow/merge detection, fail-loud),
+ *             rule-scoped override directives, and null-separated file parsing.
  */
 
 import * as fs from 'fs';
@@ -153,7 +155,7 @@ export function evaluate(
         : actualDocChanges;
 
       if (enforceableDocChanges.length === 0) {
-        const override = findOverride(diff.commitMessages, contract.contractId);
+        const override = findOverride(diff.commitMessages, contract.contractId, rule.id);
         violations.push({
           contractId: contract.contractId,
           ruleId: rule.id,
@@ -217,13 +219,66 @@ function filterAccepted(docPaths: string[], repo: DocumentRepository, repoRoot: 
   return docPaths.filter(p => enforceable.has(toRepoRelativePosix(p, repoRoot)));
 }
 
-function findOverride(commitMessages: string[], contractId: string): string | null {
-  const re = new RegExp(`override_contract:\\s*(spec_coupling|${escapeRegExp(contractId)})(?:\\s+(.+))?`, 'i');
-  for (const msg of commitMessages) {
-    const m = msg.match(re);
-    if (m) return (m[2] || 'overridden').trim();
+/**
+ * Find an override directive for a given contract (optionally rule-scoped).
+ *
+ * Per ADR-013 D13-5, accepted forms:
+ *   override_contract: <contract_id>            (overrides every rule in that contract)
+ *   override_contract: <contract_id>:<rule_id>  (overrides only that rule)
+ *
+ * Rules enforced here (per D13-5 + E13-8):
+ *   - Directive must appear at the start of a line (or after a newline). Substring
+ *     matches elsewhere on a line are rejected so that prose mentioning the
+ *     directive does not accidentally trigger it.
+ *   - Fenced code blocks (``` or ~~~) are stripped before matching so that
+ *     quoted commit-message bodies or pasted logs do not trigger overrides.
+ *   - The bare `override_contract: spec_coupling` form is no longer accepted —
+ *     authors must name a specific contract id.
+ *   - The contract id in the directive must match exactly (word boundary) — no
+ *     trailing substring matches (`spec_coupling_core_extra` must not be
+ *     accepted when the contract id is `spec_coupling_core`).
+ */
+export function findOverride(
+  commitMessages: string[],
+  contractId: string,
+  ruleId?: string
+): string | null {
+  const contractPattern = escapeRegExp(contractId);
+  // Accept `<contractId>` or `<contractId>:<ruleId>` (if ruleId provided, only
+  // the bare contractId and exactly this ruleId count as matches; any other
+  // `:otherRule` directive is non-matching for this particular rule).
+  const re = new RegExp(
+    `^override_contract:\\s+(${contractPattern})(?::([A-Za-z0-9_\\-]+))?\\b(?:[ \\t]+(.*))?$`,
+    'gim'
+  );
+
+  for (const rawMsg of commitMessages) {
+    if (!rawMsg) continue;
+    const stripped = stripFencedCodeBlocks(rawMsg);
+    re.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(stripped)) !== null) {
+      const directiveRuleId = m[2];
+      const justification = (m[3] || '').trim();
+      // If a specific rule is targeted in the directive, it must match the
+      // rule under evaluation. Otherwise the directive covers the entire
+      // contract.
+      if (directiveRuleId && ruleId && directiveRuleId !== ruleId) continue;
+      return justification || 'overridden';
+    }
   }
   return null;
+}
+
+/**
+ * Remove fenced code blocks (``` ... ``` and ~~~ ... ~~~) from a string so that
+ * override directives quoted inside them cannot trigger. Unclosed fences at
+ * end-of-text consume to end-of-text.
+ */
+function stripFencedCodeBlocks(text: string): string {
+  // Fences at start-of-line only. Matches ``` or ~~~ optionally followed by an
+  // info string, content, then the same fence marker.
+  return text.replace(/(^|\n)(```+|~~~+)[^\n]*\n[\s\S]*?(\n\2[^\n]*(?=\n|$)|$)/g, '\n');
 }
 
 function escapeRegExp(s: string): string {
@@ -292,40 +347,217 @@ export function globToRegex(pattern: string): RegExp {
 
 // ─ Git diff helpers ──────────────────────────────────────────────────────────
 
-export function gitDiffScope(opts: { diff?: string; staged?: boolean; cwd: string }): DiffScope {
+export interface GitDiffScopeOptions {
+  diff?: string;
+  staged?: boolean;
+  cwd: string;
+  /**
+   * Allow a shallow-clone fallback to a full-tree scan. Equivalent to
+   * `SPECFLOW_ALLOW_SHALLOW=1` in the environment (env takes precedence when
+   * either signal is set).
+   */
+  allowShallow?: boolean;
+  /** Override fail-loud behaviour in tests; default is `process.exit(2)`. */
+  onFatal?: (message: string) => never;
+}
+
+export class GitDiffScopeError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'GitDiffScopeError';
+  }
+}
+
+/**
+ * Validate a user-supplied `--diff` range. Accepts `<base>..<head>`. If the
+ * user supplied the triple-dot form (`A...HEAD`) we correct it to two-dot and
+ * emit a warning, per ADR-013 D13-4 and PRD-011 S2.
+ *
+ * Returns the corrected range plus any warning messages.
+ */
+export function validateDiffRange(raw: string): { range: string; warnings: string[] } {
+  const warnings: string[] = [];
+  const trimmed = (raw || '').trim();
+  if (!trimmed) {
+    throw new GitDiffScopeError('--diff requires a non-empty range');
+  }
+  // Reject shell metacharacters that have no place in a revision range.
+  if (/[;&|`$()<>\n\r]/.test(trimmed)) {
+    throw new GitDiffScopeError(
+      `--diff range contains forbidden characters: ${JSON.stringify(trimmed)}`
+    );
+  }
+
+  // Triple-dot (symmetric difference) — correct to two-dot with a warning.
+  if (trimmed.includes('...')) {
+    const corrected = trimmed.replace(/\.\.\.+/g, '..');
+    warnings.push(
+      `warning: --diff received triple-dot range "${trimmed}"; ` +
+        `correcting to two-dot "${corrected}" (per ADR-013 D13-4).`
+    );
+    const downstream = validateDiffRange(corrected);
+    return { range: downstream.range, warnings: [...warnings, ...downstream.warnings] };
+  }
+
+  if (!trimmed.includes('..')) {
+    throw new GitDiffScopeError(
+      `--diff expects a range "<base>..<head>"; got "${trimmed}". ` +
+        `Try "${trimmed}..HEAD".`
+    );
+  }
+  const parts = trimmed.split('..');
+  if (parts.length !== 2 || !parts[0] || !parts[1]) {
+    throw new GitDiffScopeError(
+      `--diff range must have the form "<base>..<head>"; got "${trimmed}".`
+    );
+  }
+  return { range: trimmed, warnings };
+}
+
+interface PreflightResult {
+  mode: 'staged' | 'range' | 'fullTree';
+  range?: string;
+  warnings: string[];
+  /** When true, a full-tree scan is requested (e.g. initial commit / shallow fallback). */
+  fullTree?: boolean;
+}
+
+/**
+ * Inspect the git environment and decide how to compute the diff. Fails loud
+ * on shallow clones without an escape hatch; falls back explicitly (with a
+ * visible warning) on initial commits and on merge commits.
+ *
+ * Per ADR-013 D13-3 / E13-1 / E13-2 / E13-3.
+ */
+export function preflight(
+  cwd: string,
+  opts: { diff?: string; staged?: boolean; allowShallow?: boolean }
+): PreflightResult {
+  const warnings: string[] = [];
+
+  if (opts.staged) {
+    return { mode: 'staged', warnings };
+  }
+
+  if (opts.diff) {
+    const validated = validateDiffRange(opts.diff);
+    warnings.push(...validated.warnings);
+    return { mode: 'range', range: validated.range, warnings };
+  }
+
+  // Default path: inspect HEAD~1..HEAD feasibility.
+  const allowShallow =
+    opts.allowShallow === true || process.env.SPECFLOW_ALLOW_SHALLOW === '1';
+
+  // Shallow clones can masquerade as initial commits (rev-list --count HEAD
+  // returns 1 when HEAD is a shallow root), so check shallowness FIRST and
+  // use it to distinguish "real first commit" from "fetch-depth=1 CI".
+  const isShallowRaw = tryGitCapture('rev-parse --is-shallow-repository', cwd);
+  const isShallow = (isShallowRaw || '').trim() === 'true';
+  if (isShallow) {
+    const headParent = tryGitCapture('rev-parse --verify HEAD~1', cwd);
+    if (!headParent) {
+      if (allowShallow) {
+        warnings.push(
+          'warning: shallow clone detected (no HEAD~1); falling back to full-tree scan ' +
+            '(SPECFLOW_ALLOW_SHALLOW=1 or --allow-shallow). ' +
+            'For precise coupling evaluation set fetch-depth: 0 in CI.'
+        );
+        return { mode: 'fullTree', warnings, fullTree: true };
+      }
+      throw new GitDiffScopeError(
+        'shallow clone prevents reliable diff (HEAD~1 not fetched). ' +
+          'Fix one of:\n' +
+          '  - In GitHub Actions: set `fetch-depth: 0` on actions/checkout.\n' +
+          '  - Set env SPECFLOW_ALLOW_SHALLOW=1 for a full-tree-scan fallback.\n' +
+          '  - Pass `--diff <base>..HEAD` explicitly.'
+      );
+    }
+  }
+
+  const commitCountRaw = tryGitCapture('rev-list --count HEAD', cwd);
+  const commitCount = commitCountRaw ? parseInt(commitCountRaw.trim(), 10) : NaN;
+  if (Number.isFinite(commitCount) && commitCount <= 1) {
+    warnings.push(
+      'warning: initial commit — no previous revision; falling back to full-tree scan.'
+    );
+    return { mode: 'fullTree', warnings, fullTree: true };
+  }
+
+  const parentsRaw = tryGitCapture('rev-list --parents -n 1 HEAD', cwd);
+  const parentCount = parentsRaw ? Math.max(0, parentsRaw.trim().split(/\s+/).length - 1) : 1;
+  if (parentCount >= 2) {
+    const firstParent = parentsRaw!.trim().split(/\s+/)[1];
+    warnings.push(
+      `warning: merge commit has ${parentCount} parents; diffing against first parent only ` +
+        `(HEAD^1=${firstParent ? firstParent.substring(0, 7) : '?'}). ` +
+        `Use --diff <other-parent-sha>..HEAD for the other side.`
+    );
+    return { mode: 'range', range: 'HEAD^1..HEAD', warnings };
+  }
+
+  return { mode: 'range', range: 'HEAD~1..HEAD', warnings };
+}
+
+export function gitDiffScope(opts: GitDiffScopeOptions): DiffScope {
   const cwd = opts.cwd;
   const repoRoot = resolveRepoRoot(cwd);
-  let range: string;
-  if (opts.staged) {
-    range = '--cached';
-  } else if (opts.diff) {
-    range = `${opts.diff}...HEAD`;
-  } else {
-    // Default: last commit (HEAD~1..HEAD) — useful for post-commit hook
-    range = 'HEAD~1..HEAD';
+  const onFatal =
+    opts.onFatal ||
+    ((msg: string): never => {
+      process.stderr.write(msg + '\n');
+      process.exit(2);
+    });
+
+  let pre: PreflightResult;
+  try {
+    pre = preflight(repoRoot, opts);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return onFatal(`specflow enforce: ${msg}`) as never;
+  }
+  for (const w of pre.warnings) {
+    process.stderr.write(w + '\n');
   }
 
   let changedFiles: string[] = [];
   let commitMessages: string[] = [];
 
   try {
-    if (opts.staged) {
-      const output = execSync('git diff --cached --name-only --diff-filter=ACMR', { cwd: repoRoot, encoding: 'utf-8' });
-      changedFiles = parseFileList(output);
-      // For staged changes the intended commit message isn't yet available;
-      // check COMMIT_EDITMSG if it exists (during the hook).
-      const msgPath = path.join(repoRoot, '.git', 'COMMIT_EDITMSG');
-      if (fs.existsSync(msgPath)) {
-        commitMessages.push(fs.readFileSync(msgPath, 'utf-8'));
-      }
+    if (pre.mode === 'staged') {
+      const output = tryGitCaptureBuffer(
+        ['-c', 'core.quotepath=false', 'diff', '--cached', '--name-only', '-z', '--diff-filter=ACMR'],
+        repoRoot
+      );
+      changedFiles = parseNullSeparatedFileList(output);
+      commitMessages = readActiveCommitMessage(repoRoot);
+    } else if (pre.mode === 'fullTree') {
+      // Full-tree scan: treat every tracked file as changed (initial commit /
+      // shallow fallback). Uses `git ls-files -z` for null-separated output.
+      const output = tryGitCaptureBuffer(
+        ['-c', 'core.quotepath=false', 'ls-files', '-z'],
+        repoRoot
+      );
+      changedFiles = parseNullSeparatedFileList(output);
+      // Commit messages are not applicable in this fallback — override
+      // directives from HEAD are still useful, so we include them.
+      const logOutput = tryGitCapture('log -n 50 --format=%B', repoRoot);
+      if (logOutput) commitMessages = [logOutput];
     } else {
-      const output = execSync(`git diff ${range} --name-only --diff-filter=ACMR`, { cwd: repoRoot, encoding: 'utf-8' });
-      changedFiles = parseFileList(output);
-      const logOutput = execSync(`git log ${range} --format=%B`, { cwd: repoRoot, encoding: 'utf-8' });
-      commitMessages = [logOutput];
+      const range = pre.range!;
+      const output = tryGitCaptureBuffer(
+        ['-c', 'core.quotepath=false', 'diff', range, '--name-only', '-z', '-M', '--diff-filter=ACMR'],
+        repoRoot
+      );
+      changedFiles = parseNullSeparatedFileList(output);
+      const logOutput = tryGitCapture(`log ${range} --format=%B`, repoRoot);
+      if (logOutput) commitMessages = [logOutput];
     }
-  } catch {
-    // Leave arrays empty if git invocation fails.
+  } catch (e) {
+    // Narrow catch — any error here is unexpected; surface it rather than
+    // silently returning empty (per D13-3).
+    const msg = e instanceof Error ? e.message : String(e);
+    return onFatal(`specflow enforce: git invocation failed: ${msg}`) as never;
   }
 
   return { repoRoot, changedFiles, commitMessages };
@@ -348,6 +580,63 @@ function resolveRepoRoot(cwd: string): string {
 }
 
 /**
+ * Read the commit message only when we are actively inside a commit hook.
+ * Detecting this precisely is best-effort: git sets GIT_INDEX_FILE for
+ * `pre-commit`/`commit-msg`/`prepare-commit-msg`, and GIT_EDITOR for the
+ * editor-launching variants. We require one of those signals before trusting
+ * `.git/COMMIT_EDITMSG` — otherwise the file is stale from the previous commit.
+ */
+function readActiveCommitMessage(cwd: string): string[] {
+  const inHook = Boolean(process.env.GIT_INDEX_FILE || process.env.GIT_EDITOR);
+  if (!inHook) return [];
+  const gitDir = tryGitCapture('rev-parse --git-dir', cwd);
+  const base = gitDir ? path.resolve(cwd, gitDir.trim()) : path.join(cwd, '.git');
+  const msgPath = path.join(base, 'COMMIT_EDITMSG');
+  if (!fs.existsSync(msgPath)) return [];
+  try {
+    const msg = fs.readFileSync(msgPath, 'utf-8');
+    return msg ? [msg] : [];
+  } catch {
+    return [];
+  }
+}
+
+function tryGitCapture(args: string, cwd: string): string | null {
+  try {
+    return execSync(`git ${args}`, { cwd, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] });
+  } catch {
+    return null;
+  }
+}
+
+function tryGitCaptureBuffer(args: string[], cwd: string): Buffer {
+  // Use spawnSync-style argv (via execFileSync) so we never pass user input
+  // through a shell. Returns empty buffer on failure to let higher-level code
+  // decide how to react.
+  const { execFileSync } = require('child_process') as typeof import('child_process');
+  try {
+    return execFileSync('git', args, { cwd, stdio: ['pipe', 'pipe', 'pipe'] }) as Buffer;
+  } catch {
+    return Buffer.alloc(0);
+  }
+}
+
+/**
+ * Parse `git ... -z` null-separated output into a list of repo-relative paths.
+ * Preserves filenames containing spaces, quotes, and non-ASCII bytes verbatim.
+ * Normalises Windows backslashes defensively; never calls `path.resolve`.
+ */
+export function parseNullSeparatedFileList(buf: Buffer | string): string[] {
+  const text = typeof buf === 'string' ? buf : buf.toString('utf-8');
+  if (!text) return [];
+  return text
+    .split('\0')
+    .filter((p) => p.length > 0)
+    .map((p) => p.replace(/\\/g, '/'))
+    .map((p) => p.replace(/^\/+/, ''));
+}
+
+/**
  * Parse `git diff --name-only` output into repo-relative POSIX paths.
  *
  * Git emits paths relative to the repository root (when invoked from the
@@ -356,7 +645,8 @@ function resolveRepoRoot(cwd: string): string {
  * never call `path.resolve`, which was the root cause of the silent-pass
  * bug fixed by ADR-013 D13-1.
  */
-function parseFileList(output: string): string[] {
+export function parseFileList(output: string): string[] {
+  if (!output) return [];
   return output
     .split(/\r?\n/)
     .map(l => l.trim())

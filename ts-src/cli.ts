@@ -193,6 +193,7 @@ async function main() {
         staged: hasFlag('--staged'),
         diff: getFlagValue('--diff'),
         suggest: hasFlag('--suggest'),
+        allowShallow: hasFlag('--allow-shallow'),
       });
       break;
     }
