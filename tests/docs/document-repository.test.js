@@ -95,7 +95,9 @@ describe('DocumentRepository', () => {
     expect(overdue.map(d => d.id)).toEqual(['ADR-110']);
   });
 
-  test('findStaleLinks surfaces Accepted docs linking to soft-deleted', () => {
+  test('stale_links classification surfaces Accepted docs linking to soft-deleted', () => {
+    // Post-S4: DocumentRepository.findStaleLinks is gone — callers iterate via
+    // the entity method instead. Same answer, single source of truth.
     const dir = makeTempRepo([
       { id: 'ADR-120', type: 'ADR', status: 'Accepted', lastReviewed: '2026-04-16', implementsList: ['PRD-120'] },
       { id: 'PRD-120', type: 'PRD', status: 'Superseded', lastReviewed: '2026-04-16', supersededBy: 'PRD-121' },
@@ -103,10 +105,15 @@ describe('DocumentRepository', () => {
     ]);
     const repo = new DocumentRepository();
     repo.load(dir);
-    const stale = repo.findStaleLinks();
+    // Populate inbound references so classify() does not bail out as orphaned.
+    repo.setInboundReferences([
+      { sourceType: 'document', sourcePath: '/x', targetId: 'ADR-120' },
+      { sourceType: 'document', sourcePath: '/x', targetId: 'PRD-121' },
+    ]);
+    const now = new Date('2026-04-16');
+    const stale = repo.all().filter(d => d.classify(now, repo) === 'stale_links');
     expect(stale).toHaveLength(1);
-    expect(stale[0].doc.id).toBe('ADR-120');
-    expect(stale[0].staleLinks[0].targetId).toBe('PRD-120');
+    expect(stale[0].id).toBe('ADR-120');
   });
 });
 

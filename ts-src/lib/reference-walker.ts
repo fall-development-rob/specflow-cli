@@ -6,8 +6,14 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { Reference } from './document-repository';
+import { ID_PATTERN_INLINE, DOCUMENT_TYPES } from './document-types';
 
-const ID_PATTERN = /\b(ADR|PRD|DDD)-\d{3}\b/g;
+// Alias to the central inline-id matcher so adding a new DocumentType (e.g.
+// RFC) automatically extends the walker without touching this file.
+const ID_PATTERN = ID_PATTERN_INLINE;
+// Non-global companion used to pull the first id out of a doc's body so we
+// can skip self-references. Built from DOCUMENT_TYPES for the same reason.
+const ID_PATTERN_FIRST = new RegExp(`\\b(?:${DOCUMENT_TYPES.join('|')})-\\d{3}\\b`);
 
 const SOURCE_EXT = new Set(['.ts', '.js', '.tsx', '.jsx', '.mjs', '.cjs', '.rs', '.py']);
 const CONTRACT_EXT = new Set(['.yml', '.yaml']);
@@ -61,7 +67,7 @@ function walkDocs(docsDir: string): Reference[] {
   for (const file of walkFiles(docsDir, new Set(['.md']))) {
     const content = safeRead(file);
     if (!content) continue;
-    const ownId = (content.match(/\b(ADR|PRD|DDD)-\d{3}\b/) || [])[0];
+    const ownId = (content.match(ID_PATTERN_FIRST) || [])[0];
     const matches = Array.from(new Set(content.match(ID_PATTERN) || []));
     for (const m of matches) {
       if (m === ownId) continue;

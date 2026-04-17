@@ -5,11 +5,23 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import {
+  DOCUMENT_TYPES,
+  DOCUMENT_STATUSES,
+  DocumentType,
+  DocumentStatus,
+  ID_PATTERN,
+  ID_PATTERN_CAPTURING,
+  ID_PATTERN_CAPTURING_GLOBAL,
+  isValidStatus,
+  isValidType,
+} from './document-types';
 
 const yaml = require('js-yaml');
 
-export type DocumentStatus = 'Draft' | 'Accepted' | 'Superseded' | 'Deprecated';
-export type DocumentType = 'ADR' | 'PRD' | 'DDD';
+// Re-export the type aliases so existing `from './frontmatter'` imports keep
+// working during the S4 refactor. New code should import from './document-types'.
+export { DocumentType, DocumentStatus };
 
 export interface DocumentFrontmatter {
   id: string;
@@ -41,7 +53,6 @@ export interface ParseFailure {
 
 export type ParseResult = ParseSuccess | ParseFailure;
 
-const ID_PATTERN = /^(ADR|PRD|DDD)-\d{3}$/;
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const FRONTMATTER_OPEN = /^---\s*\r?\n/;
 const FRONTMATTER_CLOSE_RE = /\r?\n---\s*(\r?\n|$)/;
@@ -122,18 +133,19 @@ function normalise(raw: any): DocumentFrontmatter {
 
 export function validate(fm: DocumentFrontmatter): string[] {
   const errors: string[] = [];
+  const idShape = `(${DOCUMENT_TYPES.join('|')})-NNN`;
 
   if (!fm.id) errors.push('Missing required field: id');
-  else if (!ID_PATTERN.test(fm.id)) errors.push(`Invalid id "${fm.id}" — must match (ADR|PRD|DDD)-NNN`);
+  else if (!ID_PATTERN.test(fm.id)) errors.push(`Invalid id "${fm.id}" — must match ${idShape}`);
 
   if (!fm.title) errors.push('Missing required field: title');
 
   if (!fm.type) errors.push('Missing required field: type');
-  else if (!['ADR', 'PRD', 'DDD'].includes(fm.type)) errors.push(`Invalid type "${fm.type}"`);
+  else if (!isValidType(fm.type)) errors.push(`Invalid type "${fm.type}" — must be one of ${DOCUMENT_TYPES.join(', ')}`);
 
   if (!fm.status) errors.push('Missing required field: status');
-  else if (!['Draft', 'Accepted', 'Superseded', 'Deprecated'].includes(fm.status)) {
-    errors.push(`Invalid status "${fm.status}"`);
+  else if (!isValidStatus(fm.status)) {
+    errors.push(`Invalid status "${fm.status}" — must be one of ${DOCUMENT_STATUSES.join(', ')}`);
   }
 
   if (!fm.version || fm.version < 1) errors.push('Field version must be >= 1');
@@ -154,14 +166,14 @@ export function validate(fm: DocumentFrontmatter): string[] {
     errors.push('Status Deprecated requires deprecation_note field');
   }
   if (fm.superseded_by && !ID_PATTERN.test(fm.superseded_by)) {
-    errors.push(`superseded_by "${fm.superseded_by}" must match (ADR|PRD|DDD)-NNN`);
+    errors.push(`superseded_by "${fm.superseded_by}" must match ${idShape}`);
   }
 
   for (const ref of fm.implements) {
-    if (!ID_PATTERN.test(ref)) errors.push(`implements entry "${ref}" must match (ADR|PRD|DDD)-NNN`);
+    if (!ID_PATTERN.test(ref)) errors.push(`implements entry "${ref}" must match ${idShape}`);
   }
   for (const ref of fm.implemented_by) {
-    if (!ID_PATTERN.test(ref)) errors.push(`implemented_by entry "${ref}" must match (ADR|PRD|DDD)-NNN`);
+    if (!ID_PATTERN.test(ref)) errors.push(`implemented_by entry "${ref}" must match ${idShape}`);
   }
 
   return errors;
@@ -195,8 +207,13 @@ export function writeFrontmatter(filePath: string, fm: DocumentFrontmatter, body
 const LEGACY_STATUS_RE = /\*\*Status:\*\*\s*(.+)/;
 const LEGACY_DATE_RE = /\*\*Date:\*\*\s*(.+)/;
 const LEGACY_DEPENDS_RE = /\*\*Depends on:\*\*\s*(.+)/;
-const LEGACY_TITLE_RE = /^#\s+((ADR|PRD|DDD)-\d{3}):?\s*(.+)/m;
-const INLINE_ID_RE = /(ADR|PRD|DDD)-\d{3}/g;
+// Title regex built from the central DOCUMENT_TYPES so new types (e.g. RFC)
+// pick it up automatically. Groups: 1 = full id, 2 = type.
+const LEGACY_TITLE_RE = new RegExp(
+  `^#\\s+((${DOCUMENT_TYPES.join('|')})-\\d{3}):?\\s*(.+)`,
+  'm'
+);
+const INLINE_ID_RE = ID_PATTERN_CAPTURING_GLOBAL;
 
 export interface LegacyHeader {
   id?: string;
@@ -220,11 +237,10 @@ export function parseLegacyHeader(content: string): LegacyHeader {
   const statusMatch = content.match(LEGACY_STATUS_RE);
   if (statusMatch) {
     const s = statusMatch[1].trim();
-    if (s === 'Draft' || s === 'Accepted' || s === 'Superseded' || s === 'Deprecated') {
+    if (isValidStatus(s)) {
       header.status = s;
-    } else if (/proposed/i.test(s)) {
-      header.status = 'Accepted';
     } else {
+      // "Proposed" and any unknown legacy status coerce to Accepted.
       header.status = 'Accepted';
     }
   }
@@ -250,7 +266,7 @@ export function buildFrontmatterFromLegacy(
 ): DocumentFrontmatter | null {
   const legacy = parseLegacyHeader(content);
   const basename = path.basename(filePath);
-  const idFromName = basename.match(/(ADR|PRD|DDD)-\d{3}/);
+  const idFromName = basename.match(ID_PATTERN_CAPTURING);
 
   const id = legacy.id || (idFromName ? idFromName[0] : '');
   if (!id) return null;

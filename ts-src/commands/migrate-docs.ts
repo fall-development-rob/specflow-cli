@@ -12,7 +12,8 @@ import {
   serialize,
   DocumentFrontmatter,
 } from '../lib/frontmatter';
-import { DocumentRepository, isArchitectureDocFile } from '../lib/document-repository';
+import { DocumentRepository } from '../lib/document-repository';
+import { isArchitectureDocFile, ID_PATTERN_CAPTURING } from '../lib/document-types';
 import { fix as fixReciprocity } from '../lib/link-validator';
 import { getDefaultDocumentWriter } from '../lib/document-writer';
 import { bold, green, yellow, dim, cyan } from '../lib/logger';
@@ -141,7 +142,7 @@ function printHuman(actions: MigrationAction[], projectRoot: string, dryRun: boo
 
 function inferId(filePath: string): string {
   const basename = path.basename(filePath);
-  const match = basename.match(/(ADR|PRD|DDD)-\d{3}/);
+  const match = basename.match(ID_PATTERN_CAPTURING);
   return match ? match[0] : basename;
 }
 
