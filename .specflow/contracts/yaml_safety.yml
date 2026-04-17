@@ -1,0 +1,187 @@
+contract_meta:
+  id: yaml_safety
+  version: 1
+  created_from_spec: "ADR-017 — YAML Parsing Security Hardening, rules 1-3"
+  covers_reqs:
+    - YAML-001
+    - YAML-002
+    - YAML-003
+    - YAML-004
+  owner: "specflow-defaults"
+
+# This contract enforces safe YAML-parsing patterns across Specflow's
+# TypeScript source. Specflow loads two classes of untrusted-ish YAML:
+# frontmatter in docs/architecture/**/*.md and the snapshot ledger
+# docs/architecture/versions.yml. ADR-017 identified three concrete
+# risks (billion-laughs DoS via aliases, silent duplicate-key last-
+# wins, prototype pollution via ledger tag keys) and prescribes a
+# single hardened wrapper (ts-src/lib/safe-yaml.ts) as the only
+# sanctioned entry point.
+#
+# Implementation note: the fully general form of these invariants
+# requires dataflow analysis (for example, "every yaml.load call is
+# followed by a schema validation") that pure regex cannot express.
+# The patterns below flag the highest-signal cases; complete
+# enforcement arrives in PRD-011 slice S6 alongside the safe-yaml
+# wrapper.
+
+llm_policy:
+  enforce: true
+  llm_may_modify_non_negotiables: false
+  override_phrase: "override_contract: yaml_safety"
+  instructions: |
+    When this contract fails, the source code is parsing YAML
+    directly via `yaml.load()` without the FAILSAFE schema, or is
+    using a plain-object literal as the root of a tag-indexed ledger.
+    Resolution:
+      1. Route every YAML parse through `ts-src/lib/safe-yaml.ts`
+         (parseFrontmatter, parseLedger) — never call `yaml.load`
+         directly outside that module.
+      2. For ledger roots, use `new Map()` or
+         `Object.create(null)` — never `{}` — and validate tag keys
+         against the deny-list `/^(__proto__|constructor|prototype)$/`.
+      3. If a one-off parse is unavoidable, pass
+         `{ schema: yaml.FAILSAFE_SCHEMA, onWarning: (e) => { throw e; } }`
+         explicitly and add a code comment citing this contract.
+
+rules:
+  non_negotiable:
+    - id: YAML-001
+      title: "yaml.load must specify FAILSAFE_SCHEMA"
+      rule_type: source_pattern
+      scope:
+        - "ts-src/**/*.ts"
+        - "!ts-src/lib/safe-yaml.ts"
+        - "!ts-src/**/*.test.ts"
+        - "!ts-src/**/__tests__/**"
+      behavior:
+        forbidden_patterns:
+          - pattern: /\byaml\.load\s*\(\s*[^,)]+\)/
+            message: "yaml.load called with a single argument — DEFAULT_SCHEMA permits anchors/aliases (billion-laughs DoS). Use safe-yaml.ts, or pass { schema: yaml.FAILSAFE_SCHEMA }."
+          - pattern: /\byaml\.load\s*\([^)]*schema\s*:\s*yaml\.DEFAULT_SCHEMA/
+            message: "DEFAULT_SCHEMA is explicitly vulnerable to billion-laughs via aliases. Use FAILSAFE_SCHEMA."
+          - pattern: /\byaml\.load\s*\([^)]*schema\s*:\s*yaml\.CORE_SCHEMA/
+            message: "CORE_SCHEMA still resolves aliases. Use FAILSAFE_SCHEMA."
+        example_violation: |
+          import yaml from 'js-yaml';
+          const fm = yaml.load(raw);                          // DEFAULT_SCHEMA
+        example_compliant: |
+          import yaml from 'js-yaml';
+          const fm = yaml.load(raw, {
+            schema: yaml.FAILSAFE_SCHEMA,
+            onWarning: (e) => { throw e; },
+          });
+          // Better: route through ts-src/lib/safe-yaml.ts
+
+    - id: YAML-002
+      title: "yaml.load must reject duplicate keys"
+      rule_type: source_pattern
+      scope:
+        - "ts-src/**/*.ts"
+        - "!ts-src/lib/safe-yaml.ts"
+        - "!ts-src/**/*.test.ts"
+        - "!ts-src/**/__tests__/**"
+      behavior:
+        forbidden_patterns:
+          - pattern: /\byaml\.load\s*\([^)]*\)/
+            negative_lookahead:
+              # The complete enforcement lives in ts-src/lib/safe-yaml.ts;
+              # this rule flags any call site outside that module and
+              # relies on YAML-001 scope exclusion to keep the wrapper
+              # itself legal.
+              - "onWarning"
+            message: "yaml.load without onWarning handler — duplicate top-level keys are silently last-wins. Route through safe-yaml.ts or pass { onWarning: (e) => { throw e; } }."
+        consistency_check:
+          # Implemented in safe-yaml.ts (PRD-011 S6): every call pairs
+          # a FAILSAFE parse with a second-pass duplicate-key scan of
+          # the raw text.
+          requires: "onWarning_or_duplicate_key_scan"
+        example_violation: |
+          const fm = yaml.load(raw, { schema: yaml.FAILSAFE_SCHEMA });
+          // Missing onWarning — duplicate status: lines silently
+          // resolve to the last occurrence.
+        example_compliant: |
+          const fm = yaml.load(raw, {
+            schema: yaml.FAILSAFE_SCHEMA,
+            onWarning: (e) => { throw e; },
+          });
+
+    - id: YAML-003
+      title: "Ledger roots must not be plain object literals"
+      rule_type: source_pattern
+      scope:
+        - "ts-src/lib/snapshot-ledger.ts"
+        - "ts-src/domain/ledger/**/*.ts"
+        - "!ts-src/**/*.test.ts"
+      behavior:
+        forbidden_patterns:
+          # A plain-object literal used as a tag-keyed ledger root is
+          # a prototype-pollution hazard: `ledger['__proto__'] = x`
+          # rewrites Object.prototype. Replace with `new Map()` or
+          # `Object.create(null)`.
+          - pattern: /\b(ledger|entries|snapshots)\s*[:=]\s*\{\s*\}/
+            message: "Ledger root declared as a plain-object literal — prototype-pollution hazard on tag-keyed writes. Use `new Map()` or `Object.create(null)`."
+          - pattern: /\b(ledger|entries|snapshots)\s*\[\s*[^\]]+\s*\]\s*=/
+            message: "Bracket-index assignment on a ledger object — if the index is user-supplied and matches __proto__/constructor/prototype this pollutes Object.prototype. Use Map.set() with a deny-list check."
+        consistency_check:
+          # Implemented in PRD-011 S6: every ledger-tag write passes
+          # through setEntry(), which rejects __proto__ / constructor
+          # / prototype keys before touching the Map.
+          requires: "map_backed_ledger_with_proto_denylist"
+        example_violation: |
+          const ledger: Record<string, Entry> = {};
+          ledger[userSuppliedTag] = entry;   // __proto__ pollutes prototype
+        example_compliant: |
+          const DENY = /^(__proto__|constructor|prototype)$/;
+          const ledger = new Map<string, Entry>();
+          function setEntry(tag: string, entry: Entry) {
+            if (DENY.test(tag)) throw new ProtoKeyRejectedError(tag);
+            ledger.set(tag, entry);
+          }
+
+    - id: YAML-004
+      title: "Direct js-yaml import outside safe-yaml is discouraged"
+      rule_type: source_pattern
+      scope:
+        - "ts-src/**/*.ts"
+        - "!ts-src/lib/safe-yaml.ts"
+        - "!ts-src/**/*.test.ts"
+        - "!ts-src/**/__tests__/**"
+      behavior:
+        forbidden_patterns:
+          - pattern: /^\s*import\s+yaml\s+from\s+['"]js-yaml['"]/m
+            message: "Direct js-yaml import outside safe-yaml.ts — all YAML parsing must route through the hardened wrapper (ADR-017). Import parseFrontmatter / parseLedger from ts-src/lib/safe-yaml.ts instead."
+          - pattern: /\brequire\s*\(\s*['"]js-yaml['"]\s*\)/
+            message: "Direct js-yaml require outside safe-yaml.ts — use the hardened wrapper (ADR-017)."
+        example_violation: |
+          // ts-src/commands/some-command.ts
+          import yaml from 'js-yaml';
+          const data = yaml.load(fileContent);
+        example_compliant: |
+          // ts-src/commands/some-command.ts
+          import { parseFrontmatter } from '../lib/safe-yaml';
+          const data = parseFrontmatter(fileContent);
+
+compliance_checklist:
+  before_editing_parsers:
+    - question: "Are you calling yaml.load() directly?"
+      if_yes: "Route through ts-src/lib/safe-yaml.ts (parseFrontmatter or parseLedger). That module is the only sanctioned caller of js-yaml."
+    - question: "Are you building a tag-keyed map whose keys come from external input?"
+      if_yes: "Use new Map() (not {}) and validate keys against /^(__proto__|constructor|prototype)$/ before insertion."
+    - question: "Do you need DEFAULT_SCHEMA semantics (for example implicit Date coercion)?"
+      if_yes: "Coerce explicitly in the typed wrapper. FAILSAFE returns strings; your wrapper is the place to call new Date() with format validation."
+    - question: "Are you adding a new YAML consumer (new command, new domain module)?"
+      if_yes: "Add the file to safe-yaml.ts's export list. Do not add a new js-yaml import elsewhere."
+
+test_hooks:
+  tests:
+    - file: "tests/security/yaml-hardening.test.js"
+      description: "Pattern checks for YAML-001 through YAML-004 (PRD-011 S6)"
+  tooling:
+    checker_script: "scripts/check-contracts.js"
+
+# Attribution
+# Hardening rules declared by ADR-017, delivered in PRD-011 slice S6.
+# Billion-laughs and prototype-pollution findings originate from the
+# v1 Spec Integrity Toolkit review; the FAILSAFE-schema pattern is
+# the js-yaml-sanctioned remediation for YAML 1.1 alias-based DoS.

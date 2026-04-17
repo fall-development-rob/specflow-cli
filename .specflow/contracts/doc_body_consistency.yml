@@ -1,0 +1,163 @@
+contract_meta:
+  id: doc_body_consistency
+  version: 1
+  created_from_spec: "ADR-017 — YAML Parsing Security Hardening, rule 4 (body-consistency)"
+  covers_reqs:
+    - DOC-001
+    - DOC-002
+    - DOC-003
+  owner: "specflow-defaults"
+
+# This contract enforces that architecture docs do not carry stale
+# legacy header-block values (`**Status:**`, `**Date:**`,
+# `**Depends on:**`) that disagree with the YAML frontmatter.
+#
+# Motivation: ADR-010's own body stated "Status: Proposed" while its
+# frontmatter reported "Accepted". The toolkit built to catch narrative-
+# to-code drift silently permitted narrative-to-frontmatter drift on
+# its own docs. This contract closes that loop.
+#
+# Implementation note: the rules below express the invariant using
+# pattern-based detection. Pure regex cannot compare body values to
+# frontmatter; the complete check lives in `specflow doctor --docs`
+# (rule_type: doc_frontmatter_body_consistency, per ADR-017 S6). The
+# YAML declared here gives the contract engine a hook point and makes
+# the rule discoverable via `specflow contract list`.
+
+llm_policy:
+  enforce: true
+  llm_may_modify_non_negotiables: false
+  override_phrase: "override_contract: doc_body_consistency"
+  instructions: |
+    When this contract fails, an architecture doc has a legacy header-
+    block line (`**Status:**`, `**Date:**`, or `**Depends on:**`) in
+    the body that duplicates — or worse, contradicts — the YAML
+    frontmatter. Resolution options, in preference order:
+      1. Delete the body line; the frontmatter is the source of truth.
+      2. If the body line is intentional historical quotation, wrap
+         it in a fenced code block or precede it with the
+         `<!-- specflow-ignore:body-drift -->` comment.
+      3. Only as a last resort, add
+         `override_contract: doc_body_consistency <reason>` to the
+         commit message.
+
+rules:
+  non_negotiable:
+    - id: DOC-001
+      title: "Body `**Status:**` must agree with frontmatter status"
+      rule_type: doc_frontmatter_body_consistency
+      scope:
+        - "docs/architecture/**/*.md"
+      behavior:
+        forbidden_patterns:
+          - pattern: /^\*\*Status:\*\*\s+(Draft|Accepted|Superseded|Deprecated|Proposed)\s*$/m
+            message: "Body `**Status:**` line found — frontmatter is the source of truth. Delete the body line or confirm it matches frontmatter.status."
+        consistency_check:
+          # Implemented in specflow doctor --docs (ADR-017 S6).
+          # The pattern above flags any legacy **Status:** line; the
+          # deeper equality check (body value vs frontmatter.status)
+          # runs in code because YAML-only regex cannot read
+          # frontmatter.
+          body_field: "**Status:**"
+          frontmatter_field: "status"
+          fence_aware: true
+        example_violation: |
+          ---
+          id: ADR-010
+          status: Accepted
+          ---
+
+          # ADR-010
+
+          **Status:** Proposed   # disagrees with frontmatter
+        example_compliant: |
+          ---
+          id: ADR-010
+          status: Accepted
+          ---
+
+          # ADR-010
+          # (no body **Status:** line — frontmatter is canonical)
+
+    - id: DOC-002
+      title: "Body `**Date:**` must agree with frontmatter date"
+      rule_type: doc_frontmatter_body_consistency
+      scope:
+        - "docs/architecture/**/*.md"
+      behavior:
+        forbidden_patterns:
+          - pattern: /^\*\*Date:\*\*\s+\d{4}-\d{2}-\d{2}\s*$/m
+            message: "Body `**Date:**` line is obsolete — the frontmatter `date` field is canonical. Delete this line."
+        consistency_check:
+          body_field: "**Date:**"
+          frontmatter_field: "date"
+          fence_aware: true
+        example_violation: |
+          ---
+          id: ADR-010
+          date: '2026-04-16'
+          ---
+
+          # ADR-010
+          **Date:** 2026-04-15    # stale copy of frontmatter.date
+        example_compliant: |
+          ---
+          id: ADR-010
+          date: '2026-04-16'
+          ---
+
+          # ADR-010
+          # (date lives only in frontmatter)
+
+    - id: DOC-003
+      title: "Body `**Depends on:**` IDs must be a subset of frontmatter.implements"
+      rule_type: doc_frontmatter_body_consistency
+      scope:
+        - "docs/architecture/**/*.md"
+      behavior:
+        forbidden_patterns:
+          - pattern: /^\*\*Depends on:\*\*/m
+            message: "Body `**Depends on:**` is legacy migration leftover — move references into frontmatter `implements:` and delete this line."
+        consistency_check:
+          body_field: "**Depends on:**"
+          frontmatter_field: "implements"
+          id_pattern: /(ADR|PRD|DDD)-\d{3}/
+          relation: "body_ids_subset_of_frontmatter"
+          fence_aware: true
+        example_violation: |
+          ---
+          id: ADR-012
+          implements: [ADR-011]
+          ---
+
+          **Depends on:** ADR-011 (listed), ADR-099 (missing from frontmatter)
+        example_compliant: |
+          ---
+          id: ADR-012
+          implements: [ADR-011]
+          ---
+
+          # (dependencies listed only in frontmatter.implements)
+
+compliance_checklist:
+  before_editing_docs:
+    - question: "Are you editing the frontmatter status, date, or implements fields?"
+      if_yes: "Check the body for a matching `**Status:**`, `**Date:**`, or `**Depends on:**` line and delete it. Frontmatter is the source of truth."
+    - question: "Are you pasting a template that carries legacy header lines?"
+      if_yes: "Strip the `**Status:**`, `**Date:**`, `**Depends on:**` lines from the template before authoring."
+    - question: "Do you need to quote a legacy header value inside the body (for example in a historical narrative)?"
+      if_yes: "Wrap the quotation in a fenced code block, or precede the line with `<!-- specflow-ignore:body-drift -->`."
+
+test_hooks:
+  tests:
+    - file: "tests/doctor/body-consistency.test.js"
+      description: "Body-frontmatter consistency checks for DOC-001 through DOC-003 (per ADR-017 S6)"
+  tooling:
+    checker_script: "ts-src/commands/doctor.ts"
+
+# Attribution
+# This contract addresses the drift discovered during the ADR-010 /
+# ADR-011 authorship review: the v1 toolkit successfully caught
+# source-to-doc divergence but missed frontmatter-to-body divergence
+# on its own artefacts. Rule declared by ADR-017, delivered in
+# PRD-011 slice S6.
