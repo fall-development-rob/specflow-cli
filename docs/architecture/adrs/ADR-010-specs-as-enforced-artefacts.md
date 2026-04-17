@@ -19,10 +19,6 @@ implemented_by:
 
 # ADR-010: Specs as First-Class Enforceable Artefacts
 
-**Status:** Proposed
-**Date:** 2026-04-16
-**Depends on:** ADR-008 (Incremental Enforcement), DDD-001 (Contract Engine), DDD-002 (Enforcement Pipeline)
-
 ---
 
 ## Context
