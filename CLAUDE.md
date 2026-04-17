@@ -135,6 +135,12 @@ override_contract: <contract_id>
 
 ---
 
+## Spec Truth Hierarchy
+
+When artefacts disagree, precedence is **Contracts > ADRs > PRDs/DDDs**. Contracts in `.specflow/contracts/*.yml` are continuously verified against code and win any conflict. ADRs are authoritative for the decision they record. PRDs and DDDs capture a moment in time — treat them as historical context unless their frontmatter `last_reviewed` is recent. If a narrative doc contradicts a contract, fix the code, fix the contract, or update the doc; never assume the narrative is current.
+
+---
+
 ## NEW SESSION ONBOARDING (For Other Projects)
 
 **If you are using Specflow in a DIFFERENT project and don't know the project context, ASK FIRST:**
