@@ -8,6 +8,7 @@ import {
   DocumentRepository,
 } from './document-repository';
 import { DocumentFrontmatter, serialize, extractFrontmatterBlock, parseFile } from './frontmatter';
+import { getDefaultDocumentWriter } from './document-writer';
 import * as fs from 'fs';
 
 export interface MissingReciprocal {
@@ -107,5 +108,5 @@ function writeDoc(doc: Document): void {
   if (!block) return;
   const newBlock = serialize(doc.frontmatter);
   const trailing = block.body.startsWith('\n') ? block.body : '\n' + block.body;
-  fs.writeFileSync(doc.filePath, newBlock + trailing, 'utf-8');
+  getDefaultDocumentWriter().writeAtomic(doc.filePath, newBlock + trailing);
 }

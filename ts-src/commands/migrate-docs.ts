@@ -14,6 +14,7 @@ import {
 } from '../lib/frontmatter';
 import { DocumentRepository, isArchitectureDocFile } from '../lib/document-repository';
 import { fix as fixReciprocity } from '../lib/link-validator';
+import { getDefaultDocumentWriter } from '../lib/document-writer';
 import { bold, green, yellow, dim, cyan } from '../lib/logger';
 
 interface MigrateOptions {
@@ -76,12 +77,13 @@ export async function run(options: MigrateOptions): Promise<void> {
   if (options.dryRun) return;
 
   // Apply migrations
+  const writer = getDefaultDocumentWriter();
   let migrated = 0;
   for (const action of actions) {
     if (action.action !== 'migrate' || !action.frontmatter) continue;
     const content = fs.readFileSync(action.filePath, 'utf-8');
     const updated = injectFrontmatter(content, action.frontmatter);
-    fs.writeFileSync(action.filePath, updated, 'utf-8');
+    writer.writeAtomic(action.filePath, updated);
     migrated++;
   }
 
