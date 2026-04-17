@@ -14,6 +14,7 @@ import { DocumentRepository } from '../lib/document-repository';
 import { validate as validateLinks, fix as fixLinks } from '../lib/link-validator';
 import { walkAll as walkReferences } from '../lib/reference-walker';
 import { loadContractIndex } from '../lib/contract-index';
+import { checkLoadedDocument, BodyFinding } from '../lib/body-consistency';
 
 type Severity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
 type Status = 'pass' | 'warn' | 'fail';
@@ -343,6 +344,14 @@ function runDocsMode(projectRoot: string, options: DoctorOptions): void {
     }
   }
 
+  // Body-frontmatter consistency check (ADR-017 rule 4).
+  const bodyFindings: BodyFinding[] = [];
+  for (const doc of repo.all()) {
+    bodyFindings.push(...checkLoadedDocument(doc));
+  }
+  const bodyErrors = bodyFindings.filter((f) => f.severity === 'error');
+  const bodyWarnings = bodyFindings.filter((f) => f.severity === 'warn');
+
   if (options.json) {
     console.log(JSON.stringify({
       counts,
@@ -350,16 +359,25 @@ function runDocsMode(projectRoot: string, options: DoctorOptions): void {
       missingReciprocals: postFixReport.missingReciprocals,
       danglingReferences: postFixReport.danglingReferences,
       missingContracts,
+      bodyFindings: bodyFindings.map((f) => ({
+        filePath: path.relative(projectRoot, f.filePath),
+        docId: f.docId,
+        type: f.type,
+        severity: f.severity,
+        line: f.line,
+        message: f.message,
+      })),
     }, null, 2));
   } else {
-    printDocsHuman(repo, parseErrors, postFixReport, counts, projectRoot, missingContracts);
+    printDocsHuman(repo, parseErrors, postFixReport, counts, projectRoot, missingContracts, bodyErrors, bodyWarnings);
   }
 
   const hasFailures =
     parseErrors.length > 0 ||
     postFixReport.missingReciprocals.length > 0 ||
     postFixReport.danglingReferences.length > 0 ||
-    missingContracts.length > 0;
+    missingContracts.length > 0 ||
+    bodyErrors.length > 0;
   if (hasFailures) {
     process.exit(1);
   }
@@ -371,7 +389,9 @@ function printDocsHuman(
   report: { missingReciprocals: Array<{ from: string; to: string; direction: string }>; danglingReferences: Array<{ from: string; missingTarget: string; field: string }> },
   counts: Record<string, number>,
   projectRoot: string,
-  missingContracts: Array<{ from: string; missingContract: string }> = []
+  missingContracts: Array<{ from: string; missingContract: string }> = [],
+  bodyErrors: BodyFinding[] = [],
+  bodyWarnings: BodyFinding[] = []
 ): void {
   console.log('');
   console.log(bold('Specflow Doctor — Documentation'));
@@ -414,11 +434,29 @@ function printDocsHuman(
     console.log('');
   }
 
+  if (bodyErrors.length > 0) {
+    console.log(red(bold(`  Body consistency (${bodyErrors.length} error${bodyErrors.length === 1 ? '' : 's'}):`)));
+    for (const f of bodyErrors) {
+      console.log(`    ${path.relative(projectRoot, f.filePath)}:${f.line} [${f.docId}] ${f.message}`);
+    }
+    console.log('');
+  }
+
+  if (bodyWarnings.length > 0) {
+    console.log(yellow(bold(`  Body consistency (${bodyWarnings.length} warning${bodyWarnings.length === 1 ? '' : 's'}):`)));
+    for (const f of bodyWarnings) {
+      console.log(`    ${path.relative(projectRoot, f.filePath)}:${f.line} [${f.docId}] ${f.message}`);
+    }
+    console.log('');
+  }
+
   if (
     parseErrors.length === 0 &&
     report.danglingReferences.length === 0 &&
     report.missingReciprocals.length === 0 &&
-    missingContracts.length === 0
+    missingContracts.length === 0 &&
+    bodyErrors.length === 0 &&
+    bodyWarnings.length === 0
   ) {
     console.log(green('  All documentation checks passed.'));
     console.log('');
