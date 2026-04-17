@@ -28,6 +28,7 @@ This directory contains the planning, architecture, and design documents for tra
 | [PRD-008: Contract Creation](prds/PRD-008-contract-creation.md) | 11c | specflow contract create with template and AI modes |
 | [PRD-009: Contract Packages](prds/PRD-009-contract-packages.md) | 11e | Shareable contract packages via npm: add, remove, publish |
 | [PRD-010: Spec Integrity Toolkit](prds/PRD-010-spec-integrity-toolkit.md) | 12 | spec_coupling contracts, frontmatter schema, review/snapshot/migrate-docs commands |
+| [PRD-011: Spec Integrity v1.1](prds/PRD-011-spec-integrity-v11.md) | 13 | Correctness hardening, Document entity, lifecycle verbs, traceability, YAML security |
 
 ### ADRs (Architecture Decision Records)
 
@@ -45,6 +46,11 @@ This directory contains the planning, architecture, and design documents for tra
 | [ADR-010: Specs as Enforced Artefacts](adrs/ADR-010-specs-as-enforced-artefacts.md) | Documentation becomes a first-class enforceable category via spec_coupling |
 | [ADR-011: Document Lifecycle and Frontmatter Schema](adrs/ADR-011-document-lifecycle-and-frontmatter.md) | YAML frontmatter, status lifecycle (Draft/Accepted/Superseded/Deprecated), version snapshots |
 | [ADR-012: Bidirectional Document Linking](adrs/ADR-012-bidirectional-document-linking.md) | implements/implemented_by reciprocity, validated and auto-fixed by doctor |
+| [ADR-013: Correctness Hardening](adrs/ADR-013-correctness-hardening.md) | Repo-relative paths, minimatch, fail-loud git diff, rule-scoped overrides, atomic writes |
+| [ADR-014: Document Entity + Type Registry](adrs/ADR-014-document-entity-and-type-registry.md) | Promote Document to real entity; central DocumentTypeRegistry; transitionTo with state-machine enforcement |
+| [ADR-015: Lifecycle Verb Family](adrs/ADR-015-lifecycle-verb-family.md) | specflow doc accept/supersede/deprecate/bump/stamp/revive — atomic lifecycle transitions |
+| [ADR-016: Contract-Root Traceability](adrs/ADR-016-contract-root-traceability.md) | specflow audit --contract, typed links (tests/blocks/contradicts), owners field, review --html |
+| [ADR-017: YAML Security Hardening](adrs/ADR-017-yaml-security-hardening.md) | FAILSAFE schema, reject anchors/duplicate-keys/__proto__ tags, body↔frontmatter consistency |
 
 ### DDDs (Domain Design Documents)
 
@@ -57,6 +63,7 @@ This directory contains the planning, architecture, and design documents for tra
 | [DDD-005: Incremental Enforcement](ddds/DDD-005-incremental-enforcement.md) | Git integration, file filter pipeline, baseline comparison, domain model |
 | [DDD-006: Contract Packages](ddds/DDD-006-contract-packages.md) | Package lifecycle, conflict resolution, registry interaction, domain model |
 | [DDD-007: Spec Integrity Domain](ddds/DDD-007-spec-integrity-domain.md) | Document entity, lifecycle state machine, link graph, coupling enforcement, snapshot ledger |
+| [DDD-008: Document Lifecycle Domain](ddds/DDD-008-document-lifecycle-domain.md) | Document entity behaviour, DocumentTypeRegistry, LifecycleOrchestrator, AuditLog, state-machine enforcement |
 
 ---
 
