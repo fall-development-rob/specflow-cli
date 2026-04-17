@@ -37,16 +37,15 @@ import {
 } from '../lib/document-repository';
 import {
   DocumentFrontmatter,
-  DocumentStatus,
   serialize,
   extractFrontmatterBlock,
 } from '../lib/frontmatter';
 import { getDefaultDocumentWriter } from '../lib/document-writer';
 import {
-  isValidTransition,
-  allowedNextStates,
+  DocumentStatus,
+  LIFECYCLE_TRANSITIONS,
   TransitionError,
-} from '../lib/lifecycle';
+} from '../lib/document-types';
 import {
   AuditLog,
   AuditEntry,
@@ -148,10 +147,12 @@ export async function run(options: DocVerbOptions): Promise<void> {
   } catch (err: any) {
     if (err instanceof TransitionError) {
       console.error(red(`TransitionError: ${err.message}`));
-      if (err.kind === 'Forbidden') {
-        const allowed = allowedNextStates(err.from);
+      if (err.code === 'forbidden') {
+        const allowed = LIFECYCLE_TRANSITIONS[err.from] || [];
         if (allowed.length > 0) {
           console.error(dim(`  allowed from ${err.from}: ${allowed.join(', ')}`));
+        } else {
+          console.error(dim(`  "${err.from}" is terminal; write a new doc instead`));
         }
       }
       process.exit(2);
@@ -177,13 +178,13 @@ async function runAccept(ctx: VerbContext, args: string[]): Promise<void> {
     return;
   }
 
-  if (!isValidTransition(from, to)) {
-    throw new TransitionError(from, to, 'Forbidden');
-  }
+  // Delegates the (from, to) validation to the central transition matrix via
+  // Document.transitionTo (ADR-014). Throws TransitionError on forbidden
+  // transitions and mutates frontmatter.status in place; we persist below.
+  doc.transitionTo(to);
 
   const updated: DocumentFrontmatter = {
     ...doc.frontmatter,
-    status: to,
     version: Math.max(doc.frontmatter.version || 0, 1),
     last_reviewed: ctx.today,
   };
@@ -225,11 +226,8 @@ async function runSupersede(ctx: VerbContext, args: string[]): Promise<void> {
   const from = doc.frontmatter.status;
   const to: DocumentStatus = 'Superseded';
 
-  if (!isValidTransition(from, to)) {
-    throw new TransitionError(from, to, 'Forbidden');
-  }
-
   // Per ADR-015 E15-3: successor should be Accepted. Refuse otherwise.
+  // (Validated before mutating the predecessor to avoid half-state writes.)
   if (successor.frontmatter.status !== 'Accepted') {
     console.error(red(
       `MissingSuccessorError: ${byId} must be Accepted before superseding ${id} ` +
@@ -239,10 +237,14 @@ async function runSupersede(ctx: VerbContext, args: string[]): Promise<void> {
     return;
   }
 
+  // Delegates the (from, to) validation to the central transition matrix via
+  // Document.transitionTo (ADR-014). Throws TransitionError on forbidden
+  // transitions and mutates frontmatter.status in place; we persist below.
+  doc.transitionTo(to);
+
   // Primary mutation: old doc.
   const updated: DocumentFrontmatter = {
     ...doc.frontmatter,
-    status: to,
     version: (doc.frontmatter.version || 0) + 1,
     last_reviewed: ctx.today,
     superseded_by: byId,
@@ -307,13 +309,13 @@ async function runDeprecate(ctx: VerbContext, args: string[]): Promise<void> {
   const from = doc.frontmatter.status;
   const to: DocumentStatus = 'Deprecated';
 
-  if (!isValidTransition(from, to)) {
-    throw new TransitionError(from, to, 'Forbidden');
-  }
+  // Delegates the (from, to) validation to the central transition matrix via
+  // Document.transitionTo (ADR-014). Throws TransitionError on forbidden
+  // transitions and mutates frontmatter.status in place; we persist below.
+  doc.transitionTo(to);
 
   const updated: DocumentFrontmatter = {
     ...doc.frontmatter,
-    status: to,
     version: (doc.frontmatter.version || 0) + 1,
     last_reviewed: ctx.today,
     deprecation_note: note,
@@ -459,13 +461,14 @@ async function runRevive(ctx: VerbContext, args: string[]): Promise<void> {
   const from = doc.frontmatter.status;
   const to: DocumentStatus = 'Accepted';
 
-  if (!isValidTransition(from, to)) {
-    throw new TransitionError(from, to, 'Forbidden');
-  }
+  // Delegates the (from, to) validation to the central transition matrix via
+  // Document.transitionTo (ADR-014). Throws TransitionError on forbidden
+  // transitions (e.g. Superseded -> Accepted) and mutates frontmatter.status
+  // in place; we persist below.
+  doc.transitionTo(to);
 
   const updated: DocumentFrontmatter = {
     ...doc.frontmatter,
-    status: to,
     version: (doc.frontmatter.version || 0) + 1,
     last_reviewed: ctx.today,
     deprecation_note: undefined,
