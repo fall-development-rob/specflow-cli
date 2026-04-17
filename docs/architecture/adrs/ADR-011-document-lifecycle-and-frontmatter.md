@@ -11,6 +11,8 @@ implements:
 implemented_by:
   - ADR-012
   - ADR-013
+  - ADR-014
+  - ADR-015
   - ADR-017
   - DDD-007
 ---
