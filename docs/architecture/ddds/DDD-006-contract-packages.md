@@ -1,3 +1,16 @@
+---
+id: DDD-006
+title: Contract Packages Domain Design
+type: DDD
+status: Accepted
+version: 1
+date: '2026-04-05'
+last_reviewed: '2026-04-17'
+implements:
+  - DDD-001
+  - DDD-002
+---
+
 # DDD-006: Contract Packages Domain Design
 
 **Status:** Proposed

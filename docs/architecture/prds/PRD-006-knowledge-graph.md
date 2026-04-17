@@ -1,3 +1,13 @@
+---
+id: PRD-006
+title: Knowledge Graph Integration
+type: PRD
+status: Accepted
+version: 1
+date: '2026-04-04'
+last_reviewed: '2026-04-17'
+---
+
 # PRD-006: Knowledge Graph Integration
 
 **Status:** Proposed

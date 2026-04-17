@@ -12,7 +12,7 @@ import {
   serialize,
   DocumentFrontmatter,
 } from '../lib/frontmatter';
-import { DocumentRepository } from '../lib/document-repository';
+import { DocumentRepository, isArchitectureDocFile } from '../lib/document-repository';
 import { fix as fixReciprocity } from '../lib/link-validator';
 import { bold, green, yellow, dim, cyan } from '../lib/logger';
 
@@ -43,6 +43,9 @@ export async function run(options: MigrateOptions): Promise<void> {
   const actions: MigrationAction[] = [];
 
   for (const filePath of files) {
+    // Skip files that aren't architecture docs (README, MASTER-PLAN, SIMULATION-REPORT etc.)
+    if (!isArchitectureDocFile(filePath)) continue;
+
     const content = fs.readFileSync(filePath, 'utf-8');
     if (hasFrontmatter(content)) {
       actions.push({ filePath, id: inferId(filePath), action: 'skip', reason: 'already has frontmatter' });

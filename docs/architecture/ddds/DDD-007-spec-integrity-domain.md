@@ -1,3 +1,19 @@
+---
+id: DDD-007
+title: Spec Integrity Domain Design
+type: DDD
+status: Accepted
+version: 1
+date: '2026-04-16'
+last_reviewed: '2026-04-17'
+implements:
+  - DDD-001
+  - DDD-002
+  - ADR-010
+  - ADR-011
+  - ADR-012
+---
+
 # DDD-007: Spec Integrity Domain Design
 
 **Status:** Proposed

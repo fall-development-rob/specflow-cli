@@ -47,6 +47,10 @@ export class DocumentRepository {
 
     const files = this.walkMarkdown(rootDir);
     for (const filePath of files) {
+      // Only consider files that look like architecture docs (ADR/PRD/DDD-NNN-*.md).
+      // Files like README.md, MASTER-PLAN.md, SIMULATION-REPORT.md are skipped entirely.
+      if (!isArchitectureDocFile(filePath)) continue;
+
       const result = parseFile(filePath);
       if (!result.ok) {
         this.parseErrors.push({ filePath, error: result.error, errors: result.errors });
@@ -153,6 +157,10 @@ export class DocumentRepository {
     }
     return results;
   }
+}
+
+export function isArchitectureDocFile(filePath: string): boolean {
+  return /(ADR|PRD|DDD)-\d{3}/.test(path.basename(filePath));
 }
 
 export function loadFromString(id: string, filePath: string, content: string): Document | null {

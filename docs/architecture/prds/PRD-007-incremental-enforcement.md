@@ -1,3 +1,13 @@
+---
+id: PRD-007
+title: Incremental Enforcement & PR Compliance
+type: PRD
+status: Accepted
+version: 1
+date: '2026-04-05'
+last_reviewed: '2026-04-17'
+---
+
 # PRD-007: Incremental Enforcement & PR Compliance
 
 **Status:** Proposed

@@ -1,3 +1,13 @@
+---
+id: PRD-008
+title: Contract Creation (`specflow contract create`)
+type: PRD
+status: Accepted
+version: 1
+date: '2026-04-05'
+last_reviewed: '2026-04-17'
+---
+
 # PRD-008: Contract Creation (`specflow contract create`)
 
 **Status:** Proposed

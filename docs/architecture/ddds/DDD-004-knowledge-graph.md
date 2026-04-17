@@ -1,3 +1,17 @@
+---
+id: DDD-004
+title: Knowledge Graph Domain Design
+type: DDD
+status: Accepted
+version: 1
+date: '2026-04-04'
+last_reviewed: '2026-04-17'
+implements:
+  - DDD-001
+  - DDD-002
+  - DDD-003
+---
+
 # DDD-004: Knowledge Graph Domain Design
 
 **Status:** Proposed

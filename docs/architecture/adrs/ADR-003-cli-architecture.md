@@ -1,3 +1,16 @@
+---
+id: ADR-003
+title: CLI Architecture
+type: ADR
+status: Accepted
+version: 1
+date: '2026-04-02'
+last_reviewed: '2026-04-17'
+implemented_by:
+  - ADR-008
+  - ADR-009
+---
+
 # ADR-003: CLI Architecture
 
 **Status:** Proposed

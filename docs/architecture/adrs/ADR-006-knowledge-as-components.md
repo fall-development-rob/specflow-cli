@@ -1,3 +1,18 @@
+---
+id: ADR-006
+title: Knowledge as Hooks, Agents, and Skills Instead of Static Docs
+type: ADR
+status: Accepted
+version: 1
+date: '2026-04-04'
+last_reviewed: '2026-04-17'
+implements:
+  - ADR-005
+  - ADR-004
+implemented_by:
+  - ADR-007
+---
+
 # ADR-006: Knowledge as Hooks, Agents, and Skills Instead of Static Docs
 
 **Status:** Proposed

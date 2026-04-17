@@ -1,3 +1,15 @@
+---
+id: PRD-003
+title: Installation & Packaging
+type: PRD
+status: Accepted
+version: 1
+date: '2026-04-17'
+last_reviewed: '2026-04-17'
+implements:
+  - PRD-001
+---
+
 # PRD-003: Installation & Packaging
 
 **Status:** Proposed

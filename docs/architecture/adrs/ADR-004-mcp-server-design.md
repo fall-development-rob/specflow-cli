@@ -1,3 +1,16 @@
+---
+id: ADR-004
+title: MCP Server Design
+type: ADR
+status: Accepted
+version: 1
+date: '2026-04-02'
+last_reviewed: '2026-04-17'
+implemented_by:
+  - ADR-006
+  - ADR-007
+---
+
 # ADR-004: MCP Server Design
 
 **Status:** Proposed

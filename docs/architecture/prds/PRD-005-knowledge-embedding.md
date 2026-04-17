@@ -1,3 +1,13 @@
+---
+id: PRD-005
+title: Knowledge Embedding
+type: PRD
+status: Accepted
+version: 1
+date: '2026-04-04'
+last_reviewed: '2026-04-17'
+---
+
 # PRD-005: Knowledge Embedding
 
 **Status:** Proposed

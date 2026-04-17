@@ -1,3 +1,17 @@
+---
+id: PRD-001
+title: Specflow CLI Rewrite
+type: PRD
+status: Accepted
+version: 1
+date: '2026-04-17'
+last_reviewed: '2026-04-17'
+implemented_by:
+  - PRD-002
+  - PRD-003
+  - PRD-004
+---
+
 # PRD-001: Specflow CLI Rewrite
 
 **Status:** Proposed
