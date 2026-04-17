@@ -1,3 +1,17 @@
+---
+id: ADR-009
+title: Contract Packages via npm
+type: ADR
+status: Accepted
+version: 1
+date: '2026-04-05'
+last_reviewed: '2026-04-17'
+implements:
+  - ADR-003
+  - DDD-001
+  - DDD-002
+---
+
 # ADR-009: Contract Packages via npm
 
 **Status:** Proposed

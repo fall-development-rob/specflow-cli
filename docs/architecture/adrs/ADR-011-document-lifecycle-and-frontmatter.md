@@ -1,3 +1,18 @@
+---
+id: ADR-011
+title: Document Lifecycle and Frontmatter Schema
+type: ADR
+status: Accepted
+version: 1
+date: '2026-04-16'
+last_reviewed: '2026-04-17'
+implements:
+  - ADR-010
+implemented_by:
+  - ADR-012
+  - DDD-007
+---
+
 # ADR-011: Document Lifecycle and Frontmatter Schema
 
 **Status:** Proposed

@@ -1,3 +1,16 @@
+---
+id: PRD-010
+title: Spec Integrity Toolkit
+type: PRD
+status: Accepted
+version: 1
+date: '2026-04-16'
+last_reviewed: '2026-04-17'
+implements:
+  - DDD-001
+  - ADR-008
+---
+
 # PRD-010: Spec Integrity Toolkit
 
 **Status:** Proposed

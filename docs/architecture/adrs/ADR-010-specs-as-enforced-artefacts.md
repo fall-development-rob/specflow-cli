@@ -1,3 +1,20 @@
+---
+id: ADR-010
+title: Specs as First-Class Enforceable Artefacts
+type: ADR
+status: Accepted
+version: 1
+date: '2026-04-16'
+last_reviewed: '2026-04-17'
+implements:
+  - ADR-008
+  - DDD-001
+  - DDD-002
+implemented_by:
+  - ADR-011
+  - DDD-007
+---
+
 # ADR-010: Specs as First-Class Enforceable Artefacts
 
 **Status:** Proposed

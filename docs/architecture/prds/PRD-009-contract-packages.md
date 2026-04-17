@@ -1,3 +1,15 @@
+---
+id: PRD-009
+title: Contract Packages
+type: PRD
+status: Accepted
+version: 1
+date: '2026-04-05'
+last_reviewed: '2026-04-17'
+implements:
+  - DDD-001
+---
+
 # PRD-009: Contract Packages
 
 **Status:** Proposed

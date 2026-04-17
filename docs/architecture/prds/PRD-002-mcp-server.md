@@ -1,3 +1,17 @@
+---
+id: PRD-002
+title: Specflow MCP Server
+type: PRD
+status: Accepted
+version: 1
+date: '2026-04-17'
+last_reviewed: '2026-04-17'
+implements:
+  - PRD-001
+implemented_by:
+  - PRD-004
+---
+
 # PRD-002: Specflow MCP Server
 
 **Status:** Proposed

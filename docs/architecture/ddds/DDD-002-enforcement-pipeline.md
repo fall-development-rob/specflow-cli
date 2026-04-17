@@ -1,3 +1,21 @@
+---
+id: DDD-002
+title: Enforcement Pipeline Domain Design
+type: DDD
+status: Accepted
+version: 1
+date: '2026-04-02'
+last_reviewed: '2026-04-17'
+implemented_by:
+  - ADR-008
+  - ADR-009
+  - ADR-010
+  - DDD-004
+  - DDD-005
+  - DDD-006
+  - DDD-007
+---
+
 # DDD-002: Enforcement Pipeline Domain Design
 
 **Status:** Proposed

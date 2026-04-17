@@ -1,3 +1,22 @@
+---
+id: DDD-001
+title: Contract Engine Domain Design
+type: DDD
+status: Accepted
+version: 1
+date: '2026-04-02'
+last_reviewed: '2026-04-17'
+implemented_by:
+  - ADR-009
+  - ADR-010
+  - DDD-004
+  - DDD-005
+  - DDD-006
+  - DDD-007
+  - PRD-009
+  - PRD-010
+---
+
 # DDD-001: Contract Engine Domain Design
 
 **Status:** Proposed

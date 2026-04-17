@@ -1,3 +1,13 @@
+---
+id: ADR-002
+title: Node.js Over Bash for All Core Commands
+type: ADR
+status: Accepted
+version: 1
+date: '2026-04-02'
+last_reviewed: '2026-04-17'
+---
+
 # ADR-002: Node.js Over Bash for All Core Commands
 
 **Status:** Proposed

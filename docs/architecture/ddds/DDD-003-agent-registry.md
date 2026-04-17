@@ -1,3 +1,15 @@
+---
+id: DDD-003
+title: Agent Registry Domain Design
+type: DDD
+status: Accepted
+version: 1
+date: '2026-04-02'
+last_reviewed: '2026-04-17'
+implemented_by:
+  - DDD-004
+---
+
 # DDD-003: Agent Registry Domain Design
 
 **Status:** Proposed

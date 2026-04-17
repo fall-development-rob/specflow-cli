@@ -1,3 +1,16 @@
+---
+id: PRD-004
+title: Agent System
+type: PRD
+status: Accepted
+version: 1
+date: '2026-04-17'
+last_reviewed: '2026-04-17'
+implements:
+  - PRD-001
+  - PRD-002
+---
+
 # PRD-004: Agent System
 
 **Status:** Proposed

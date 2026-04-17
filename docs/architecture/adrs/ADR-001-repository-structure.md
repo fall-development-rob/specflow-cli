@@ -1,3 +1,13 @@
+---
+id: ADR-001
+title: Repository Structure
+type: ADR
+status: Accepted
+version: 1
+date: '2026-04-02'
+last_reviewed: '2026-04-17'
+---
+
 # ADR-001: Repository Structure
 
 **Status:** Proposed

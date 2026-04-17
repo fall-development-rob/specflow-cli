@@ -1,3 +1,17 @@
+---
+id: ADR-007
+title: Knowledge Graph and Learning Memory Layer
+type: ADR
+status: Accepted
+version: 1
+date: '2026-04-04'
+last_reviewed: '2026-04-17'
+implements:
+  - ADR-006
+  - ADR-005
+  - ADR-004
+---
+
 # ADR-007: Knowledge Graph and Learning Memory Layer
 
 **Status:** Amended

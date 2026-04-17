@@ -1,3 +1,16 @@
+---
+id: DDD-005
+title: Incremental Enforcement Domain Design
+type: DDD
+status: Accepted
+version: 1
+date: '2026-04-05'
+last_reviewed: '2026-04-17'
+implements:
+  - DDD-001
+  - DDD-002
+---
+
 # DDD-005: Incremental Enforcement Domain Design
 
 **Status:** Proposed

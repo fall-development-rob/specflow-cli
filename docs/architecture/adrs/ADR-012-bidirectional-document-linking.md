@@ -1,3 +1,17 @@
+---
+id: ADR-012
+title: Bidirectional Document Linking
+type: ADR
+status: Accepted
+version: 1
+date: '2026-04-16'
+last_reviewed: '2026-04-17'
+implements:
+  - ADR-011
+implemented_by:
+  - DDD-007
+---
+
 # ADR-012: Bidirectional Document Linking
 
 **Status:** Proposed

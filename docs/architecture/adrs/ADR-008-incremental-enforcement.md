@@ -1,3 +1,19 @@
+---
+id: ADR-008
+title: Incremental Enforcement (--staged and --diff)
+type: ADR
+status: Accepted
+version: 1
+date: '2026-04-05'
+last_reviewed: '2026-04-17'
+implements:
+  - ADR-003
+  - DDD-002
+implemented_by:
+  - ADR-010
+  - PRD-010
+---
+
 # ADR-008: Incremental Enforcement (--staged and --diff)
 
 **Status:** Proposed
