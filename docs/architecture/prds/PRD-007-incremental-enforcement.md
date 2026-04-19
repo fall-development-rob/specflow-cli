@@ -10,10 +10,7 @@ last_reviewed: '2026-04-17'
 
 # PRD-007: Incremental Enforcement & PR Compliance
 
-**Status:** Proposed
-**Date:** 2026-04-05
 **Phase:** 11 (sub-phases 11a, 11b, 11d)
-**Depends on:** Phase 10 (Knowledge Graph), Phase 8 (Simulation Fixes), Phase 2 (CLI Rewrite)
 
 ---
 

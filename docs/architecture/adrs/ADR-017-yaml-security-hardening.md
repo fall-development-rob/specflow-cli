@@ -14,10 +14,6 @@ implemented_by:
 
 # ADR-017: YAML Parsing Security Hardening
 
-**Status:** Accepted
-**Date:** 2026-04-17
-**Depends on:** ADR-011 (Document Lifecycle and Frontmatter Schema)
-
 ---
 
 ## Context

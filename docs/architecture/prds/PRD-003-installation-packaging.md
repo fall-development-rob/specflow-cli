@@ -12,11 +12,9 @@ implements:
 
 # PRD-003: Installation & Packaging
 
-**Status:** Proposed
 **Author:** Specflow Team
 **Phase:** 4
 **Priority:** High
-**Depends on:** PRD-001 (CLI Rewrite)
 
 ---
 

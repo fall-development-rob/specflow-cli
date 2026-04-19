@@ -10,10 +10,7 @@ last_reviewed: '2026-04-17'
 
 # PRD-005: Knowledge Embedding
 
-**Status:** Proposed
-**Date:** 2026-04-04
 **Phase:** 9
-**Depends on:** Phase 5 (Agent System), Phase 3 (MCP Server), Phase 8 (Simulation Fixes)
 
 ---
 

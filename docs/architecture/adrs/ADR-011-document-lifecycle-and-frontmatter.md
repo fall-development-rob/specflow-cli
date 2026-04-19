@@ -19,10 +19,6 @@ implemented_by:
 
 # ADR-011: Document Lifecycle and Frontmatter Schema
 
-**Status:** Proposed
-**Date:** 2026-04-16
-**Depends on:** ADR-010 (Specs as Enforced Artefacts)
-
 ---
 
 ## Context

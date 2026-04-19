@@ -16,10 +16,6 @@ implemented_by:
 
 # ADR-015: Lifecycle Verb Family — `specflow doc`
 
-**Status:** Proposed
-**Date:** 2026-04-17
-**Depends on:** ADR-011 (Document Lifecycle), ADR-014 (Document Entity and Type Registry)
-
 ---
 
 ## Context

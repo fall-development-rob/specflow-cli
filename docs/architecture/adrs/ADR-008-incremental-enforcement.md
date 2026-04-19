@@ -16,10 +16,6 @@ implemented_by:
 
 # ADR-008: Incremental Enforcement (--staged and --diff)
 
-**Status:** Proposed
-**Date:** 2026-04-05
-**Depends on:** ADR-003 (CLI Architecture), DDD-002 (Enforcement Pipeline), Phase 10 (Knowledge Graph)
-
 ---
 
 ## Context

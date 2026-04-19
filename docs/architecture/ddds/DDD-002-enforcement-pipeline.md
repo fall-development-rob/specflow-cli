@@ -18,9 +18,6 @@ implemented_by:
 
 # DDD-002: Enforcement Pipeline Domain Design
 
-**Status:** Proposed
-**Date:** 2026-04-02
-
 ---
 
 ## Domain Overview

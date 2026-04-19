@@ -13,8 +13,6 @@ implemented_by:
 
 # ADR-004: MCP Server Design
 
-**Status:** Proposed
-**Date:** 2026-04-02
 **Phase:** 3
 
 ## Context

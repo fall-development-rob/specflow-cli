@@ -14,10 +14,6 @@ implements:
 
 # ADR-009: Contract Packages via npm
 
-**Status:** Proposed
-**Date:** 2026-04-05
-**Depends on:** ADR-003 (CLI Architecture), DDD-001 (Contract Engine), DDD-002 (Enforcement Pipeline)
-
 ---
 
 ## Context

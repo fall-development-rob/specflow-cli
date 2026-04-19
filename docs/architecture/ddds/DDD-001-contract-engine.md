@@ -19,9 +19,6 @@ implemented_by:
 
 # DDD-001: Contract Engine Domain Design
 
-**Status:** Proposed
-**Date:** 2026-04-02
-
 ---
 
 ## Domain Overview

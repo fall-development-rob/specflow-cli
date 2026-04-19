@@ -10,10 +10,7 @@ last_reviewed: '2026-04-17'
 
 # PRD-006: Knowledge Graph Integration
 
-**Status:** Proposed
-**Date:** 2026-04-04
 **Phase:** 10
-**Depends on:** Phase 8 (Simulation Fixes), Phase 9 (Knowledge Embedding), Phase 5 (Agent System), Phase 3 (MCP Server)
 
 ---
 

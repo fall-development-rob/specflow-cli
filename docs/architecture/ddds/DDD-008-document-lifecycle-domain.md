@@ -14,10 +14,6 @@ implemented_by: []
 
 # DDD-008: Document Lifecycle Domain Design
 
-**Status:** Proposed
-**Date:** 2026-04-17
-**Depends on:** DDD-007 (Spec Integrity Domain), ADR-014 (Document Entity and Type Registry), ADR-015 (Lifecycle Verb Family)
-
 ---
 
 ## Domain Overview

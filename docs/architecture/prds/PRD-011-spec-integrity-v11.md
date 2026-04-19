@@ -14,10 +14,7 @@ implemented_by: []
 
 # PRD-011: Spec Integrity Toolkit v1.1 — Correctness, Verbs, and Reach
 
-**Status:** Accepted
-**Date:** 2026-04-17
 **Phase:** 12.1
-**Depends on:** PRD-010 (Spec Integrity Toolkit v1), ADR-016, ADR-017
 **Implements:** ADR-016, ADR-017 (ADR-013, ADR-014, ADR-015 referenced below once authored by sibling lanes)
 **Implemented By:** —
 

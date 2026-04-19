@@ -16,10 +16,6 @@ implemented_by:
 
 # ADR-013: Correctness Hardening for Spec Integrity Toolkit
 
-**Status:** Accepted
-**Date:** 2026-04-17
-**Depends on:** ADR-010 (Specs as Enforced Artefacts), ADR-011 (Document Lifecycle), ADR-012 (Bidirectional Linking)
-
 ---
 
 ## Context

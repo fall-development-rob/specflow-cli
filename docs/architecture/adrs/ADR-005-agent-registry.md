@@ -13,8 +13,6 @@ implemented_by:
 
 # ADR-005: Agent Registry Design
 
-**Status:** Proposed
-**Date:** 2026-04-02
 **Phase:** 5
 
 ## Context

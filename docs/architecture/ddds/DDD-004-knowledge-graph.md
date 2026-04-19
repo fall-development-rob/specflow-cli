@@ -14,10 +14,6 @@ implements:
 
 # DDD-004: Knowledge Graph Domain Design
 
-**Status:** Proposed
-**Date:** 2026-04-04
-**Depends on:** DDD-001 (Contract Engine), DDD-002 (Enforcement Pipeline), DDD-003 (Agent Registry)
-
 ---
 
 ## Domain Overview

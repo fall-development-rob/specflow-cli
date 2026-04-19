@@ -12,9 +12,6 @@ implemented_by:
 
 # DDD-003: Agent Registry Domain Design
 
-**Status:** Proposed
-**Date:** 2026-04-02
-
 ---
 
 ## Domain Overview

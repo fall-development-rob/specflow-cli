@@ -13,10 +13,6 @@ implements:
 
 # DDD-005: Incremental Enforcement Domain Design
 
-**Status:** Proposed
-**Date:** 2026-04-05
-**Depends on:** DDD-001 (Contract Engine), DDD-002 (Enforcement Pipeline)
-
 ---
 
 ## Domain Overview
