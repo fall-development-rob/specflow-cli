@@ -14,10 +14,7 @@ implements:
 
 # PRD-010: Spec Integrity Toolkit
 
-**Status:** Proposed
-**Date:** 2026-04-16
 **Phase:** 12
-**Depends on:** Phase 2 (CLI Rewrite), DDD-001 (Contract Engine), ADR-008 (Incremental Enforcement)
 **Implements:** —
 **Implemented By:** ADR-010, ADR-011, ADR-012, DDD-007
 

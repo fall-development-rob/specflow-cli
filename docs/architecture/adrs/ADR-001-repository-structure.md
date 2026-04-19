@@ -10,8 +10,6 @@ last_reviewed: '2026-04-17'
 
 # ADR-001: Repository Structure
 
-**Status:** Proposed
-**Date:** 2026-04-02
 **Phase:** 1
 
 ## Context

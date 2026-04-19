@@ -14,10 +14,7 @@ implements:
 
 # ADR-007: Knowledge Graph and Learning Memory Layer
 
-**Status:** Amended
-**Date:** 2026-04-04
 **Amended:** 2026-04-04
-**Depends on:** ADR-006 (Knowledge as Components), ADR-005 (Agent Registry), ADR-004 (MCP Server Design)
 
 ---
 

@@ -15,10 +15,6 @@ implemented_by:
 
 # ADR-006: Knowledge as Hooks, Agents, and Skills Instead of Static Docs
 
-**Status:** Proposed
-**Date:** 2026-04-04
-**Depends on:** ADR-005 (Agent Registry), ADR-004 (MCP Server Design)
-
 ---
 
 ## Context

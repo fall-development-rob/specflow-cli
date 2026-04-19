@@ -12,10 +12,7 @@ implements:
 
 # PRD-009: Contract Packages
 
-**Status:** Proposed
-**Date:** 2026-04-05
 **Phase:** 11e
-**Depends on:** Phase 2 (CLI Rewrite), DDD-001 (Contract Engine)
 
 ---
 

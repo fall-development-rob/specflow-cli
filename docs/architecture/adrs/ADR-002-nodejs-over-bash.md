@@ -10,8 +10,6 @@ last_reviewed: '2026-04-17'
 
 # ADR-002: Node.js Over Bash for All Core Commands
 
-**Status:** Proposed
-**Date:** 2026-04-02
 **Phase:** 2
 
 ## Context

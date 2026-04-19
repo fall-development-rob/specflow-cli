@@ -14,11 +14,9 @@ implemented_by:
 
 # PRD-002: Specflow MCP Server
 
-**Status:** Proposed
 **Author:** Specflow Team
 **Phase:** 3
 **Priority:** High
-**Depends on:** PRD-001 (CLI Rewrite)
 
 ---
 

@@ -13,11 +13,9 @@ implements:
 
 # PRD-004: Agent System
 
-**Status:** Proposed
 **Author:** Specflow Team
 **Phase:** 5
 **Priority:** Medium
-**Depends on:** PRD-001 (CLI Rewrite), PRD-002 (MCP Server)
 
 ---
 

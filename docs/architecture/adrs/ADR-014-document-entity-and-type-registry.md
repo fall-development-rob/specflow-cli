@@ -16,10 +16,6 @@ implemented_by:
 
 # ADR-014: Document Entity and Type Registry
 
-**Status:** Proposed
-**Date:** 2026-04-17
-**Depends on:** ADR-011 (Document Lifecycle and Frontmatter Schema), ADR-012 (Bidirectional Document Linking)
-
 ---
 
 ## Context

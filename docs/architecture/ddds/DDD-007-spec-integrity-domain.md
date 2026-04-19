@@ -17,10 +17,6 @@ implements:
 
 # DDD-007: Spec Integrity Domain Design
 
-**Status:** Proposed
-**Date:** 2026-04-16
-**Depends on:** DDD-001 (Contract Engine), DDD-002 (Enforcement Pipeline), ADR-010, ADR-011, ADR-012
-
 ---
 
 ## Domain Overview

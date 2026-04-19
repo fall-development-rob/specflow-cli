@@ -17,10 +17,6 @@ implemented_by:
 
 # ADR-012: Bidirectional Document Linking
 
-**Status:** Proposed
-**Date:** 2026-04-16
-**Depends on:** ADR-011 (Document Lifecycle and Frontmatter Schema)
-
 ---
 
 ## Context

@@ -13,8 +13,6 @@ implemented_by:
 
 # ADR-003: CLI Architecture
 
-**Status:** Proposed
-**Date:** 2026-04-02
 **Phase:** 2
 
 ## Context

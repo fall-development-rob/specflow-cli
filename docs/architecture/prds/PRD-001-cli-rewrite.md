@@ -14,7 +14,6 @@ implemented_by:
 
 # PRD-001: Specflow CLI Rewrite
 
-**Status:** Proposed
 **Author:** Specflow Team
 **Phase:** 2
 **Priority:** Critical
